@@ -8,9 +8,9 @@ import { askOllama } from './llm.js';
 import { extractJson } from './marketdata.js';
 
 export const MODELS = {
-  analyst: 'gemma4:26b',
-  strategist: 'gemma4:12b',
-  auditor: 'gemma4:e4b',
+  analyst: process.env.MIKU_ANALYST_MODEL || 'gemma4:26b',
+  strategist: process.env.MIKU_STRATEGIST_MODEL || 'gemma4:12b',
+  auditor: process.env.MIKU_AUDITOR_MODEL || 'gemma4:e4b',
 };
 
 // Fallback: si el modelo principal no está disponible, usa uno más pequeño

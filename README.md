@@ -135,3 +135,35 @@ Variables de entorno del backend (opcionales):
 | 37999 | OpenCode serve |
 | 4000 | Miku (backend + frontend) |
 | 5173 | Vite (solo desarrollo) |
+
+## Despliegue en la nube (Docker, 24/7 sin tu PC)
+
+Para que Miku funcione **aunque tu ordenador esté apagado**, súbelo a un **VPS gratis** (Oracle Cloud Free Tier, Ampere ARM, 24 GB RAM) y corre todo con Docker:
+
+```
+docker compose up -d --build
+```
+
+Eso levanta dos contenedores:
+- **miku-ollama**: Ollama con los modelos `gemma4:12b` y `gemma4:e4b` (se descargan solos la primera vez, ~9 GB).
+- **miku-app**: backend + frontend. Usa modelos ligeros en la nube (variables `MIKU_*_MODEL`), ajustables en `docker-compose.yml`.
+
+Los datos (cartera, API keys, configuración de correo) se guardan en el volumen `miku-data` y **sobreviven a reinicios**.
+
+### En un VPS Ubuntu nuevo (guía rápida)
+
+```bash
+# 1. Instalar Docker y clonar el proyecto (o usar setup-vps.sh)
+curl -fsSL https://get.docker.com | sudo sh
+git clone https://github.com/noxtope-git/miku-invest.git && cd miku-invest
+
+# 2. Levantar (la primera vez descarga modelos, tarda ~10-20 min)
+sudo docker compose up -d --build
+
+# 3. Abrir la web en http://<IP-del-VPS>:4000 y configurar correo + brokers
+```
+
+- En Oracle Cloud, abre el puerto 4000 en la **Security List** (Ingress Rules) del VCN y en el firewall del sistema (`sudo ufw allow 4000`).
+- Los correos de retiro funcionan igual desde la nube.
+- En la nube se usa `gemma4:12b` como analista (el 26b no cabe cómodo en 24 GB). Si quieres el 26b, elige un VPS con más RAM.
+- El chat con OpenCode **no está disponible** en la nube (es local a tu PC); la pestaña de Inversiones y el chat con Gemma sí funcionan.

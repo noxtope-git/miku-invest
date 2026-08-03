@@ -1,0 +1,59 @@
+# Miku Invest — stack completo (Ollama + backend con frontend embebido).
+# Pensado para un VPS de 24 GB RAM (nivel gratuito de Oracle Cloud, Ampere ARM).
+# Uso: docker compose up -d
+# La primera vez descarga los modelos (~10 GB) y tardará unos minutos.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: miku-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    # Entrypoint: arranca serve en segundo plano, descarga los modelos si faltan
+    # (reintentando hasta que el servidor responda) y espera para mantener el contenedor vivo.
+    entrypoint: /bin/sh
+    command: >
+      -c "
+        echo '[ollama] arrancando servidor…' &&
+        (ollama serve >/tmp/ollama.log 2>&1 &) &&
+        echo '[ollama] descargando gemma4:12b…' &&
+        (until ollama pull gemma4:12b 2>/dev/null; do sleep 5; done) &&
+        echo '[ollama] descargando gemma4:e4b…' &&
+        (until ollama pull gemma4:e4b 2>/dev/null; do sleep 5; done) &&
+        echo '[ollama] modelos listos; contenedor operativo' &&
+        wait
+      "
+    ports:
+      - "11434:11434"
+
+  miku:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miku-app
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - PORT=4000
+      # Modelos ligeros para un VPS sin GPU de 24 GB RAM.
+      - MIKU_ANALYST_MODEL=gemma4:12b
+      - MIKU_STRATEGIST_MODEL=gemma4:12b
+      - MIKU_AUDITOR_MODEL=gemma4:e4b
+    volumes:
+      # Configuración (incluye API keys) y estado persistente.
+      - miku-data:/app/investments
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  ollama-data:
+  miku-data:
