@@ -29,8 +29,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 const FRONTEND_DIST = path.join(import.meta.dirname, '..', 'frontend', 'dist');
-if (fs.existsSync(FRONTEND_DIST)) {
-  app.use(express.static(FRONTEND_DIST));
+const FRONTEND_DIST_ALT = path.join(import.meta.dirname, 'frontend', 'dist');
+const FE_DIST = fs.existsSync(FRONTEND_DIST) ? FRONTEND_DIST : (fs.existsSync(FRONTEND_DIST_ALT) ? FRONTEND_DIST_ALT : null);
+if (FE_DIST) {
+  app.use(express.static(FE_DIST));
 }
 
 function opencodeHeaders() {
@@ -367,8 +369,8 @@ app.post('/api/invest/broker/test', async (req, res) => {
 
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
-  const idx = path.join(FRONTEND_DIST, 'index.html');
-  if (fs.existsSync(idx)) return res.sendFile(idx);
+  const idx = FE_DIST ? path.join(FE_DIST, 'index.html') : '';
+  if (idx && fs.existsSync(idx)) return res.sendFile(idx);
   next();
 });
 
