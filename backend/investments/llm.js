@@ -1,7 +1,14 @@
-// llm.js — Cliente común para invocar modelos locales vía Ollama.
-// Incluye reintentos con backoff y detección de modelos no cargados.
+// llm.js — Cliente común para invocar modelos de IA.
+// Soporta dos proveedores (se eligen con MIKU_LLM_PROVIDER):
+//   - 'ollama' (predeterminado): modelos locales vía Ollama.
+//   - 'google': API gratuita de Google AI Studio (Gemini) vía REST.
+// Incluye reintentos con backoff.
 
+const PROVIDER = process.env.MIKU_LLM_PROVIDER || 'ollama';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
+
+const GEMINI_KEY = process.env.GOOGLE_API_KEY || '';
+const GEMINI_API = process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -28,7 +35,7 @@ export async function listModels() {
   return (data.models || []).map((m) => m.name);
 }
 
-export async function askOllama({
+async function askOllama({
   model,
   system,
   user,
@@ -65,10 +72,69 @@ export async function askOllama({
       lastErr = e;
       if (attempt < retries) {
         const wait = 2000 * attempt + Math.floor(Math.random() * 1000);
-        console.warn(`[llm] reintento ${attempt}/${retries} ${model}: ${e.message}`);
+        console.warn(`[llm/ollama] reintento ${attempt}/${retries} ${model}: ${e.message}`);
         await sleep(wait);
       }
     }
   }
   throw lastErr;
 }
+
+// Llama al modelo a través de la API gratuita de Google AI Studio (Gemini).
+async function askGoogle({
+  model,
+  system,
+  user,
+  temperature = 0.3,
+  maxTokens = 2048,
+  timeoutMs = 120000,
+  retries = 3,
+}) {
+  if (!GEMINI_KEY) throw new Error('GOOGLE_API_KEY no está configurada (MIKU_LLM_PROVIDER=google)');
+  const url = `${GEMINI_API}/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`;
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    generationConfig: { temperature, maxOutputTokens: maxTokens },
+  };
+  let lastErr = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        if (r.status === 429) throw new Error(`Gemini ${model}: límite de peticiones (429) ${t}`);
+        throw new Error(`Gemini ${model}: HTTP ${r.status} ${t}`);
+      }
+      const data = await r.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+      if (!text && data?.promptFeedback?.blockReason) {
+        throw new Error(`Gemini ${model}: bloqueado (${data.promptFeedback.blockReason})`);
+      }
+      return text;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        // Ante 429 conviene esperar un poco más (límites de tasa del free tier).
+        const wait = (e.message.includes('429') ? 15000 : 2000) * attempt;
+        console.warn(`[llm/google] reintento ${attempt}/${retries} ${model}: ${e.message}`);
+        await sleep(wait);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+// Despacha según el proveedor configurado.
+export async function askLLM(opts) {
+  if (PROVIDER === 'google') return askGoogle(opts);
+  return askOllama(opts);
+}
+
+// Compatibilidad con importaciones antiguas.
+export { askOllama };

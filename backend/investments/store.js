@@ -5,9 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DIR = path.dirname(fileURLToPath(import.meta.url));
-const STATE_FILE = path.join(DIR, 'state.json');
-const CONFIG_FILE = path.join(DIR, 'config.json');
+// Directorio de persistencia (config.json / state.json). Por defecto vive junto
+// al código (uso local), pero en Docker se separa a /app/data vía MIKU_DATA_DIR
+// para que el código nuevo de la imagen no quede enmascarado por el volumen.
+const DATA_DIR = process.env.MIKU_DATA_DIR
+  || path.dirname(fileURLToPath(import.meta.url));
+const STATE_FILE = path.join(DATA_DIR, 'state.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
 export const DEFAULT_CONFIG = {
   mode: 'simulation', // 'simulation' | 'live'

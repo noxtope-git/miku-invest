@@ -1,0 +1,36 @@
+# Miku Invest — perfil para VPS de 1 GB RAM (Oracle VM.Standard.E2.1.Micro).
+# Sin Ollama: los LLM se invocan vía la API gratuita de Google AI Studio (Gemini).
+# Uso:
+#   export MIKU_LLM_PROVIDER=google
+#   export GOOGLE_API_KEY=AIza...
+#   docker compose -f docker-compose.vps.yml up -d --build
+
+services:
+  miku:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miku-app
+    restart: unless-stopped
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - PORT=4000
+      - MIKU_LLM_PROVIDER=${MIKU_LLM_PROVIDER:-google}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # En el VPS usamos siempre los modelos Gemini de la API (Flash, gratis).
+      - MIKU_ANALYST_MODEL=gemini-flash-lite-latest
+      - MIKU_STRATEGIST_MODEL=gemini-flash-lite-latest
+      - MIKU_AUDITOR_MODEL=gemini-flash-lite-latest
+    volumes:
+      - miku-data:/app/data
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  miku-data:

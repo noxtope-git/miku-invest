@@ -18,8 +18,10 @@ RUN npm ci --omit=dev || npm install
 COPY backend/ ./
 COPY --from=frontend /app/dist ./frontend/dist
 
-# Estado y configuración persistentes (montados como volúmenes).
-VOLUME /app/investments
+# Persistencia (config.json / state.json) montada como volumen en /app/data.
+# No se monta sobre /app/investments para no ocultar el código de la imagen.
+VOLUME /app/data
+ENV MIKU_DATA_DIR=/app/data
 
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

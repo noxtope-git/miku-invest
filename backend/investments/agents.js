@@ -4,22 +4,49 @@
 // de forma determinista (indicadores técnicos) para que el LLM los interprete,
 // no para que los invente.
 
-import { askOllama } from './llm.js';
+import { askLLM } from './llm.js';
 import { extractJson } from './marketdata.js';
 
-export const MODELS = {
-  analyst: process.env.MIKU_ANALYST_MODEL || 'gemma4:26b',
-  strategist: process.env.MIKU_STRATEGIST_MODEL || 'gemma4:12b',
-  auditor: process.env.MIKU_AUDITOR_MODEL || 'gemma4:e4b',
+const isGoogle = (process.env.MIKU_LLM_PROVIDER || 'ollama') === 'google';
+
+// Modelos por defecto según el proveedor activo.
+// Ollama: Gemma local. Google: Gemini Flash (gratis vía Google AI Studio).
+// Modelos gratuitos de Google AI Studio disponibles para este proyecto
+// (verificado por prueba real: 2.0-flash tiene cuota 0 y 2.5-flash da 404).
+// 'gemini-flash-lite-latest' devuelve JSON limpio; gemma-4-31b-it de refuerzo.
+const GOOGLE_DEFAULTS = {
+  analyst: 'gemini-flash-lite-latest',
+  strategist: 'gemini-flash-lite-latest',
+  auditor: 'gemini-flash-lite-latest',
+};
+const GOOGLE_FALLBACK = {
+  analyst: ['gemini-flash-lite-latest', 'gemma-4-31b-it'],
+  strategist: ['gemini-flash-lite-latest', 'gemma-4-31b-it'],
+  auditor: ['gemini-flash-lite-latest', 'gemma-4-31b-it'],
+};
+const OLLAMA_DEFAULTS = {
+  analyst: 'gemma4:26b',
+  strategist: 'gemma4:12b',
+  auditor: 'gemma4:e4b',
 };
 
-// Fallback: si el modelo principal no está disponible, usa uno más pequeño
-// que ya se cargó para otro agente (evita bloquear todo el ciclo).
-export const FALLBACK_MODELS = {
+// Fallback: si el modelo principal no está disponible, usa otro (evita
+// bloquear todo el ciclo).
+const OLLAMA_FALLBACK = {
   analyst: ['gemma4:12b', 'gemma4:e4b'],
   strategist: ['gemma4:e4b'],
   auditor: ['gemma4:e4b'],
 };
+
+const DEFAULTS = isGoogle ? GOOGLE_DEFAULTS : OLLAMA_DEFAULTS;
+
+export const MODELS = {
+  analyst: process.env.MIKU_ANALYST_MODEL || DEFAULTS.analyst,
+  strategist: process.env.MIKU_STRATEGIST_MODEL || DEFAULTS.strategist,
+  auditor: process.env.MIKU_AUDITOR_MODEL || DEFAULTS.auditor,
+};
+
+export const FALLBACK_MODELS = isGoogle ? GOOGLE_FALLBACK : OLLAMA_FALLBACK;
 
 function pickModels(role, loadedModels = []) {
   const primary = MODELS[role];
@@ -36,7 +63,7 @@ async function askAgent(role, { system, user, temperature }, validate) {
   const attempts = pickModels(role);
   for (const model of attempts) {
     try {
-      const text = await askOllama({ model, system, user, temperature });
+      const text = await askLLM({ model, system, user, temperature });
       const json = extractJson(text);
       if (!json) throw new Error('no devolvió JSON válido');
       const normalized = validate ? validate(json) : json;

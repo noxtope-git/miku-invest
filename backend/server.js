@@ -375,5 +375,8 @@ app.get('*', (req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Miku backend escuchando en http://localhost:${PORT}`);
   startAutoCycle();
-  startWatchdog(60000);
+  // El watchdog solo tiene sentido con Ollama local; con Google se omite.
+  if ((process.env.MIKU_LLM_PROVIDER || 'ollama') === 'ollama') {
+    startWatchdog(60000);
+  }
 });
