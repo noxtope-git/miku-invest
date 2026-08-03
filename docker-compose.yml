@@ -11,12 +11,12 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     # Entrypoint: arranca serve en segundo plano, descarga los modelos si faltan
-    # (reintentando hasta que el servidor responda) y espera para mantener el contenedor vivo.
+    # y se mantiene esperando (wait) para que el contenedor no se cierre.
     entrypoint: /bin/sh
     command: >
       -c "
         echo '[ollama] arrancando servidor…' &&
-        (ollama serve >/tmp/ollama.log 2>&1 &) &&
+        ollama serve >/tmp/ollama.log 2>&1 &
         echo '[ollama] descargando gemma4:12b…' &&
         (until ollama pull gemma4:12b 2>/dev/null; do sleep 5; done) &&
         echo '[ollama] descargando gemma4:e4b…' &&
