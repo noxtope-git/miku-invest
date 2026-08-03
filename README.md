@@ -124,8 +124,26 @@ Variables de entorno del backend (opcionales):
 |---|---|
 | `PORT` | `4000` |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` |
+| `MIKU_LLM_PROVIDER` | `ollama` (`ollama` local \| `google` AI Studio/Gemini) |
+| `GOOGLE_API_KEY` | (vacío) tu clave de Google AI Studio `AIza...`/`AQ...` |
+| `MIKU_ANALYST_MODEL` / `MIKU_STRATEGIST_MODEL` / `MIKU_AUDITOR_MODEL` | según proveedor (Ollama: `gemma4:*`; Google: `gemini-...`) |
+| `MIKU_DATA_DIR` | junto al código ; en Docker: `/app/data` |
 | `OPENCODE_URL` | `http://127.0.0.1:37999` |
 | `OPENCODE_PASS` | la contraseña de tu servidor opencode |
+
+### Motor de LLM: Ollama local o Google AI Studio (gratis)
+
+El sistema puede usar **Ollama local** (modelos Gemma en tu PC) o **Google AI Studio** (modelos Gemini gratuitos en la nube) para los 3 agentes de inversión. Se elige con `MIKU_LLM_PROVIDER`:
+
+- `ollama` (predeterminado): llama a `OLLAMA_URL` con los modelos `gemma4:*`.
+- `google`: llama a la API REST gratuita de Google AI Studio (`generativelanguage.googleapis.com`). Solo necesitas una API key:
+  1. Ve a https://aistudio.google.com → **Get API key** → copia la clave.
+  2. Expórtala: `export GOOGLE_API_KEY=...` (o ponla en `docker-compose.yml`/`docker-compose.vps.yml`).
+  3. Pon `MIKU_LLM_PROVIDER=google`.
+
+Con `google` **no hace falta Ollama**, el watchdog no corre y todo se resuelve vía la API. En las cuentas gratuitas, `gemini-flash-lite-latest` devuelve JSON limpio (verificado); si tu proyecto no da cuota a `gemini-2.0-flash`, usa `gemini-*` disponibles en https://ai.dev (prueba cúal responde).
+
+**Importante (seguridad):** la API key se comparte en este chat/README. Si la has pegado aquí, regenera la clave en AI Studio cuando termines.
 
 ## Puertos
 
@@ -138,7 +156,9 @@ Variables de entorno del backend (opcionales):
 
 ## Despliegue en la nube (Docker, 24/7 sin tu PC)
 
-Para que Miku funcione **aunque tu ordenador esté apagado**, súbelo a un **VPS gratis** (Oracle Cloud Free Tier, Ampere ARM, 24 GB RAM) y corre todo con Docker:
+Para que Miku funcione **aunque tu ordenador esté apagado**, súbelo a un **VPS gratis**. Hay dos perfiles:
+
+### Opción A — VPS con 24 GB RAM (Oracle Ampere ARM, `VM.Standard.A1.Flex`) + Ollama local
 
 ```
 docker compose up -d --build
@@ -148,7 +168,19 @@ Eso levanta dos contenedores:
 - **miku-ollama**: Ollama con los modelos `gemma4:12b` y `gemma4:e4b` (se descargan solos la primera vez, ~9 GB).
 - **miku-app**: backend + frontend. Usa modelos ligeros en la nube (variables `MIKU_*_MODEL`), ajustables en `docker-compose.yml`.
 
-Los datos (cartera, API keys, configuración de correo) se guardan en el volumen `miku-data` y **sobreviven a reinicios**.
+### Opción B — VPS de 1 GB RAM (Oracle `VM.Standard.E2.1.Micro` gratuito) + Google AI Studio
+
+Sin Ollama: los 3 agentes se resuelven con la API gratuita de Gemini. Solo levanta `miku-app`:
+
+```bash
+export MIKU_LLM_PROVIDER=google
+export GOOGLE_API_KEY=AIza...   # tu clave de Google AI Studio
+docker compose -f docker-compose.vps.yml up -d --build
+```
+
+Esta es la vía recomendada para el shape gratuito de 1 GB de Oracle Cloud. El backend usa modelos `gemini-*` (ver "Motor de LLM").
+
+En **ambas** opciones los datos (cartera, API keys, configuración de correo) viven en el volumen `miku-data`, montado en `/app/data` (separado del código para que un `docker compose build` no deje código viejo).
 
 ### En un VPS Ubuntu nuevo (guía rápida)
 
@@ -157,13 +189,15 @@ Los datos (cartera, API keys, configuración de correo) se guardan en el volumen
 curl -fsSL https://get.docker.com | sudo sh
 git clone https://github.com/noxtope-git/miku-invest.git && cd miku-invest
 
-# 2. Levantar (la primera vez descarga modelos, tarda ~10-20 min)
-sudo docker compose up -d --build
+# 2. Levantar (Opción B, 1 GB — sin Ollama, con Gemini). La primera vez compila la imagen.
+export MIKU_LLM_PROVIDER=google
+export GOOGLE_API_KEY=AIza...
+sudo docker compose -f docker-compose.vps.yml up -d --build
 
 # 3. Abrir la web en http://<IP-del-VPS>:4000 y configurar correo + brokers
 ```
 
-- En Oracle Cloud, abre el puerto 4000 en la **Security List** (Ingress Rules) del VCN y en el firewall del sistema (`sudo ufw allow 4000`).
+- En Oracle Cloud, abre el puerto 4000 en la **Security List** (Ingress Rules) del VCN y en el firewall del sistema (`sudo ufw allow 4000/tcp`).
 - Los correos de retiro funcionan igual desde la nube.
-- En la nube se usa `gemma4:12b` como analista (el 26b no cabe cómodo en 24 GB). Si quieres el 26b, elige un VPS con más RAM.
+- Con la opción A (Ollama) en la nube se usa `gemma4:12b` como analista (el 26b no cabe cómodo en 24 GB). Con la opción B (Google) no hay límite de RAM local.
 - El chat con OpenCode **no está disponible** en la nube (es local a tu PC); la pestaña de Inversiones y el chat con Gemma sí funcionan.
