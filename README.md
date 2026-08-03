@@ -76,6 +76,20 @@ Para activarlo:
 - Se usa el porcentaje `liveMaxNotionalPct` del saldo real por orden (por defecto 50%) como límite de tamaño.
 - Los LLM locales no predicen el mercado de forma fiable. Valida primero la estrategia en simulación durante semanas/meses antes de operar con capital real.
 
+### Notificaciones de retiro por correo 📧
+
+El sistema **no puede retirar fondos** del broker, pero detecta cuándo hay **ganancias realizadas** (ventas con beneficio) y te avisa por correo para que retires manualmente.
+
+Configuración (pestaña 📈 Inversiones → "Notificaciones de retiro"):
+
+1. **Correo remitente (el bot):** crea `miku.finanzas@gmail.com` (o usa un correo propio).
+2. En Gmail activa la **verificación en 2 pasos** (Seguridad) y genera una **contraseña de aplicación** (Seguridad → Contraseñas de aplicaciones → "Correo"). Pega esos 16 caracteres.
+3. Indica tu **correo destino** (donde recibirás las alertas).
+4. Define el **mínimo de ganancia** para alertar (por defecto 10 USD) y cada **cuántas horas** repetir el aviso (por defecto 24 h).
+5. Pulsa "Enviar prueba" para comprobar que llega.
+
+Tras cada ciclo, si la ganancia realizada supera el mínimo y ha pasado el cooldown, llega un correo con el resumen y la instrucción de retirar desde el broker.
+
 ### Componentes
 
 | Componente | Ruta | Función |
@@ -87,6 +101,8 @@ Para activarlo:
 | Orquestador | `backend/investments/orchestrator.js` | Pipeline de ciclo, ejecución y temporizador |
 | Broker | `backend/investments/broker.js` | Fachada multi-broker: Binance (cripto) + Alpaca (acciones) |
 | Broker Alpaca | `backend/investments/alpaca.js` | Cliente Alpaca (paper/live) para acciones EE.UU. |
+| Notificador | `backend/investments/notifier.js` | Alertas de retiro por correo (nodemailer) |
+| Watchdog | `backend/investments/watchdog.js` | Reinicia Ollama si cae y vigila servicios |
 | Estado | `backend/investments/store.js` | Persistencia de cartera y configuración |
 
 ## Cómo usar

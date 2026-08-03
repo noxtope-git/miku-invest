@@ -89,6 +89,36 @@ export async function getBinanceBalance(asset) {
   return { asset, free: Number(b?.free || 0), locked: Number(b?.locked || 0) };
 }
 
+// Costo promedio de entrada de una posición real (para ganancia realizada).
+// Recorre las órdenes ejecutadas del símbolo y pondera por precio*cantidad comprada.
+export async function getBinanceAvgCost(symbol) {
+  try {
+    const baseAsset = symbol.replace(/USDT$/, '');
+    const agg = await binanceSigned('GET', '/api/v3/myTrades', { symbol, limit: 100 });
+    let totalCost = 0;
+    let totalQty = 0;
+    for (const t of agg) {
+      const qty = Number(t.qty || 0);
+      const price = Number(t.price || 0);
+      const isBuyer = t.isBuyer === true;
+      const commissionAsset = t.commissionAsset || '';
+      if (isBuyer) {
+        totalCost += price * qty;
+        totalQty += qty;
+      }
+    }
+    return totalQty > 0 ? totalCost / totalQty : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getBinanceHeldQty(symbol) {
+  const baseAsset = symbol.replace(/USDT$/, '');
+  const bal = await getBinanceBalance(baseAsset);
+  return bal.free;
+}
+
 export async function getBinanceTicker(symbol) {
   const r = await binancePublic('/api/v3/ticker/price', { symbol });
   return Number(r.price);

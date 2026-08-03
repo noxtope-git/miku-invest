@@ -21,6 +21,17 @@ export const DEFAULT_CONFIG = {
   autoCycleCron: '0 18 * * 1-5', // ejemplo: 18:00 lun-vie
   liveKeys: { apiKey: '', apiSecret: '', alpacaKey: '', alpacaSecret: '', alpacaLive: false }, // API keys Binance + Alpaca (modo real)
   liveMaxNotionalPct: 0.5, // % de la caja real como máximo por orden
+  mailConfig: {
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 465,
+    smtpUser: '', // miku.finanzas@gmail.com
+    smtpPass: '', // contraseña de aplicación de Gmail
+    fromEmail: 'Miku Finanzas <miku.finanzas@gmail.com>',
+    destEmail: '', // correo donde recibe las alertas
+  },
+  mailNotifyWithdrawal: true, // enviar alerta cuando haya ganancias retirables
+  minWithdrawalProfit: 10, // ganancia mínima realizada (USD) para alertar
+  withdrawalAlertCooldownH: 24, // horas entre alertas de retiro
   assets: [
     { symbol: 'AAPL', market: 'stocks', label: 'Apple' },
     { symbol: 'MSFT', market: 'stocks', label: 'Microsoft' },
@@ -40,6 +51,7 @@ function defaultState() {
     cycles: [], // historial de ciclos (analista/estratega/auditor)
     lastCycleAt: 0,
     lastCycleError: null,
+    withdrawalAlertSentAt: 0, // última vez que se avisó de retiro (evita spam)
   };
 }
 

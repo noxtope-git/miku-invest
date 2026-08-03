@@ -22,6 +22,11 @@ export default function InvestPanel() {
   const [brokerTesting, setBrokerTesting] = useState(false);
   const [brokerTestResult, setBrokerTestResult] = useState(null);
   const [showKeys, setShowKeys] = useState(false);
+  const [mailForm, setMailForm] = useState({ smtpUser: '', smtpPass: '', destEmail: '', minWithdrawalProfit: 10, cooldown: 24 });
+  const [showMail, setShowMail] = useState(false);
+  const [mailSaving, setMailSaving] = useState(false);
+  const [mailTesting, setMailTesting] = useState(false);
+  const [mailMsg, setMailMsg] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,6 +38,15 @@ export default function InvestPanel() {
       setStatus(s);
       setConfig(c);
       setBroker(b);
+      const mc = c?.mailConfig || {};
+      setMailForm((f) => ({
+        ...f,
+        smtpUser: mc.smtpUser || f.smtpUser,
+        smtpPass: mc.smtpPass ? (f.smtpPass === '' ? '' : f.smtpPass) : f.smtpPass,
+        destEmail: mc.destEmail || f.destEmail,
+        minWithdrawalProfit: c?.minWithdrawalProfit ?? f.minWithdrawalProfit,
+        cooldown: c?.withdrawalAlertCooldownH ?? f.cooldown,
+      }));
       if (c?.assets?.length && !selectedCycle) setSelectedCycle(null);
     } catch (e) {
       setError(e.message);
@@ -125,8 +139,49 @@ export default function InvestPanel() {
     }
   };
 
-  const testBroker = async (market = null) => {
-    setBrokerTesting(true);
+  const saveMail = async () => {
+    setMailSaving(true);
+    setMailMsg(null);
+    try {
+      const r = await fetch('/api/invest/mail/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          smtpUser: mailForm.smtpUser.trim(),
+          smtpPass: mailForm.smtpPass.trim() || undefined,
+          destEmail: mailForm.destEmail.trim(),
+          minWithdrawalProfit: Number(mailForm.minWithdrawalProfit),
+          withdrawalAlertCooldownH: Number(mailForm.cooldown),
+        }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMailMsg({ ok: true, text: 'Configuración de correo guardada.' });
+      setMailForm((f) => ({ ...f, smtpPass: '' }));
+      await refresh();
+    } catch (e) {
+      setMailMsg({ ok: false, text: e.message });
+    } finally {
+      setMailSaving(false);
+    }
+  };
+
+  const testMail = async () => {
+    setMailTesting(true);
+    setMailMsg(null);
+    try {
+      const r = await fetch('/api/invest/mail/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMailMsg({ ok: true, text: `Correo de prueba enviado a ${d.to}. Revisa tu bandeja de entrada.` });
+    } catch (e) {
+      setMailMsg({ ok: false, text: `Fallo al enviar: ${e.message}` });
+    } finally {
+      setMailTesting(false);
+    }
+  };
+
+  const testBroker = async (market = null) => {    setBrokerTesting(true);
     setBrokerTestResult(null);
     try {
       const r = await fetch('/api/invest/broker/test', {
@@ -254,6 +309,59 @@ export default function InvestPanel() {
         )}
         <p className="dim" style={{ marginTop: 8, fontSize: 12 }}>
           Binance: cripto Spot (BTCUSDT, ETHUSDT…), key con permisos <strong>solo trading</strong> (sin retiros). Alpaca: acciones EE.UU., empieza en <strong>paper trading</strong> (gratis, sin dinero real); desmarca "Alpaca live" para operar con fondos reales. Ninguna key se muestra de nuevo tras guardarse.
+        </p>
+      </section>
+
+      <section className="invest-section">
+        <div className="broker-head">
+          <h3 style={{ margin: 0 }}>Notificaciones de retiro por correo 📧</h3>
+          <span className={`status-dot ${cfg.mailConfigured ? 'dot-up' : 'dot-down'}`} />
+          {cfg.mailConfigured ? (
+            <span className="dim" style={{ fontSize: 12 }}>activo · alerta a {cfg.mailConfig?.destEmail}</span>
+          ) : (
+            <span className="dim" style={{ fontSize: 12 }}>no configurado</span>
+          )}
+          <button className="small-btn" onClick={() => setShowMail(!showMail)}>
+            {showMail ? 'Cerrar' : 'Configurar correo'}
+          </button>
+          <button className="small-btn" onClick={testMail} disabled={mailTesting || !cfg.mailConfigured}>
+            {mailTesting ? 'Enviando…' : 'Enviar prueba'}
+          </button>
+        </div>
+        {showMail && (
+          <div className="broker-keys">
+            <div className="broker-keygroup">
+              <span className="broker-keygroup-label">Correo remitente (el bot)</span>
+              <input type="text" placeholder="miku.finanzas@gmail.com" value={mailForm.smtpUser} onChange={(e) => setMailForm({ ...mailForm, smtpUser: e.target.value })} />
+              <input type="password" placeholder="Contraseña de aplicación (16 letras)" value={mailForm.smtpPass} onChange={(e) => setMailForm({ ...mailForm, smtpPass: e.target.value })} />
+            </div>
+            <div className="broker-keygroup">
+              <span className="broker-keygroup-label">Correo destino (donde recibes las alertas)</span>
+              <input type="text" placeholder="tu-correo@gmail.com" value={mailForm.destEmail} onChange={(e) => setMailForm({ ...mailForm, destEmail: e.target.value })} />
+            </div>
+            <div className="broker-keygroup" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <label className="setting-label" style={{ whiteSpace: 'nowrap' }}>
+                Alertar cuando la ganancia realizada ≥
+                <input type="number" min="1" value={mailForm.minWithdrawalProfit} onChange={(e) => setMailForm({ ...mailForm, minWithdrawalProfit: e.target.value })} style={{ width: 70, margin: '0 6px' }} />
+                USD
+              </label>
+              <label className="setting-label" style={{ whiteSpace: 'nowrap' }}>
+                cada
+                <input type="number" min="1" value={mailForm.cooldown} onChange={(e) => setMailForm({ ...mailForm, cooldown: e.target.value })} style={{ width: 60, margin: '0 6px' }} />
+                horas
+              </label>
+            </div>
+            <div>
+              <button className="small-btn" onClick={saveMail} disabled={mailSaving}>{mailSaving ? 'Guardando…' : 'Guardar'}</button>
+            </div>
+          </div>
+        )}
+        {mailMsg && <div className={`broker-result ${mailMsg.ok ? 'ok' : 'fail'}`}><p>{mailMsg.ok ? '✅ ' : '❌ '}{mailMsg.text}</p></div>}
+        <p className="dim" style={{ marginTop: 8, fontSize: 12 }}>
+          El sistema revisa tras cada ciclo si hay <strong>ganancias realizadas</strong> (ventas con beneficio) iguales o superiores al mínimo configurado y te avisa por correo cuándo retirar desde el broker. <strong>El sistema no puede retirar fondos</strong>: solo te lo recuerda.
+        </p>
+        <p className="dim" style={{ fontSize: 12 }}>
+          Cómo crear la contraseña de aplicación: en Gmail activa la <strong>verificación en 2 pasos</strong> (Seguridad), luego ve a <strong>Seguridad → Contraseñas de aplicaciones</strong> y genera una para "Correo". Pega esos 16 caracteres aquí.
         </p>
       </section>
 

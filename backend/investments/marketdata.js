@@ -139,18 +139,29 @@ export function computeIndicators(rows) {
 }
 
 export function extractJson(text) {
+  if (!text) return null;
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1 || end <= start) return null;
+  let slice = cleaned.slice(start, end + 1);
+  // Reintentos: quitar comas colgantes que rompen el parseo.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return JSON.parse(slice);
+    } catch {
+      // Retira la última coma antes de una llave/arreglo de cierre y reintenta.
+      slice = slice.replace(/,\s*([}\]])/g, '$1');
+    }
+  }
   try {
-    return JSON.parse(cleaned.slice(start, end + 1));
-  } catch {
     const tryStart = cleaned.indexOf('[');
     const tryEnd = cleaned.lastIndexOf(']');
-    if (tryStart === -1 || tryEnd <= tryStart) return null;
-    try { return JSON.parse(cleaned.slice(tryStart, tryEnd + 1)); } catch { return null; }
-  }
+    if (tryStart !== -1 && tryEnd > tryStart) {
+      return JSON.parse(cleaned.slice(tryStart, tryEnd + 1).replace(/,\s*([}\]])/g, '$1'));
+    }
+  } catch {}
+  return null;
 }
 
 export { sleep };

@@ -95,6 +95,16 @@ export async function getPositionQty(symbol) {
   }
 }
 
+// Costo promedio de entrada de una posición (para calcular ganancia realizada).
+export async function getPositionAvgCost(symbol) {
+  try {
+    const pos = await request('GET', `/v2/positions/${encodeURIComponent(symbol)}`);
+    return Number(pos.avg_entry_price || 0);
+  } catch {
+    return 0;
+  }
+}
+
 // Orden de mercado. quantity: notional en USD (fraccional) o cantidad de acciones.
 export async function placeMarketOrder({ symbol, side, quantity, notional }) {
   if (!['buy', 'sell'].includes(side)) throw new Error(`Side inválido: ${side}`);

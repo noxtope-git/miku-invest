@@ -13,6 +13,43 @@ export const MODELS = {
   auditor: 'gemma4:e4b',
 };
 
+// Fallback: si el modelo principal no está disponible, usa uno más pequeño
+// que ya se cargó para otro agente (evita bloquear todo el ciclo).
+export const FALLBACK_MODELS = {
+  analyst: ['gemma4:12b', 'gemma4:e4b'],
+  strategist: ['gemma4:e4b'],
+  auditor: ['gemma4:e4b'],
+};
+
+function pickModels(role, loadedModels = []) {
+  const primary = MODELS[role];
+  if (!loadedModels.length) return [primary, ...(FALLBACK_MODELS[role] || [])];
+  const candidates = [primary, ...(FALLBACK_MODELS[role] || [])];
+  const unique = [...new Set(candidates)];
+  const available = unique.filter((m) => loadedModels.some((lm) => lm.startsWith(m)));
+  return available.length ? available : unique;
+}
+
+// Pide a un agente su JSON, probando modelos de respaldo si el principal falla.
+async function askAgent(role, { system, user, temperature }, validate) {
+  let lastErr = null;
+  const attempts = pickModels(role);
+  for (const model of attempts) {
+    try {
+      const text = await askOllama({ model, system, user, temperature });
+      const json = extractJson(text);
+      if (!json) throw new Error('no devolvió JSON válido');
+      const normalized = validate ? validate(json) : json;
+      if (!normalized) throw new Error('JSON fuera del esquema esperado');
+      return { raw: text, model, ...normalized };
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[agents] ${role} con ${model}: ${e.message}`);
+    }
+  }
+  throw lastErr || new Error(`${role} falló tras probar todos los modelos`);
+}
+
 const ANALYST_SYSTEM = `Eres un analista financiero senior, conservador y riguroso.
 Recibes datos técnicos reales calculados de un activo financiero (precio, variaciones, medias móviles, RSI, MACD, soporte y resistencia) junto con los últimos precios diarios.
 Debes interpretar esos datos y emitir un informe breve de análisis.
@@ -38,28 +75,53 @@ Reglas:
 - Sé prudente: si hay señales mezcladas, usa "neutral".
 - No recomiendes apalancamiento ni operaciones de alto riesgo.`;
 
+function formatIndicators(assetData) {
+  const ind = assetData.indicators || {};
+  const lines = [
+    `Precio actual: ${ind.price} ${assetData.currency}`,
+    `Variación 1 día: ${ind.change1d?.toFixed(2)}%`,
+    `Variación 5 días: ${ind.change5d?.toFixed(2)}%`,
+    `Variación 1 mes: ${ind.change1m?.toFixed(2)}%`,
+    `SMA20: ${ind.sma20?.toFixed(2)}`,
+    `SMA50: ${ind.sma50?.toFixed(2)}`,
+    `RSI14: ${ind.rsi14?.toFixed(1)}`,
+    `MACD: ${ind.macd?.toFixed(3)} (señal: ${ind.macdSignal?.toFixed(3)})`,
+    `Soporte 20d: ${ind.support20?.toFixed(2)}`,
+    `Resistencia 20d: ${ind.resistance20?.toFixed(2)}`,
+  ];
+  if (Array.isArray(ind.lastTrades) && ind.lastTrades.length) {
+    lines.push('ÚLTIMOS 10 CIERRES DIARIOS:');
+    for (const t of ind.lastTrades.slice(-10)) {
+      lines.push(`  ${new Date(t.t).toISOString().slice(0, 10)}: ${t.c}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function normalizeAnalyst(json) {
+  const j = json && typeof json === 'object' ? json : null;
+  if (!j) return null;
+  const sentiment = ['alcista', 'bajista', 'neutral'].includes(j.sentiment) ? j.sentiment : 'neutral';
+  const confidence = Number.isFinite(Number(j.confidence)) ? Math.max(0, Math.min(100, Number(j.confidence))) : 50;
+  return {
+    sentiment,
+    confidence,
+    summary: String(j.summary || '').slice(0, 1000),
+    keyLevels: {
+      support: j.keyLevels?.support ?? null,
+      resistance: j.keyLevels?.resistance ?? null,
+    },
+    risks: Array.isArray(j.risks) ? j.risks.map(String).slice(0, 5) : [],
+    opportunities: Array.isArray(j.opportunities) ? j.opportunities.map(String).slice(0, 5) : [],
+  };
+}
+
 async function analyst(assetData) {
   const user = `DATOS TÉCNICOS DE ${assetData.symbol} (${assetData.market.toUpperCase()}):
-
-Precio actual: ${assetData.indicators.price} ${assetData.currency}
-Variación 1 día: ${assetData.indicators.change1d.toFixed(2)}%
-Variación 5 días: ${assetData.indicators.change5d.toFixed(2)}%
-Variación 1 mes: ${assetData.indicators.change1m.toFixed(2)}%
-SMA20: ${assetData.indicators.sma20?.toFixed(2)}
-SMA50: ${assetData.indicators.sma50?.toFixed(2)}
-RSI14: ${assetData.indicators.rsi14?.toFixed(1)}
-MACD: ${assetData.indicators.macd?.toFixed(3)} (señal: ${assetData.indicators.macdSignal?.toFixed(3)})
-Soporte 20d: ${assetData.indicators.support20?.toFixed(2)}
-Resistencia 20d: ${assetData.indicators.resistance20?.toFixed(2)}
-
-ÚLTIMOS 10 CIERRES DIARIOS:
-${assetData.indicators.lastTrades.map((t) => `  ${new Date(t.t).toISOString().slice(0, 10)}: ${t.c}`).join('\n')}
+${formatIndicators(assetData)}
 
 EmitE tu informe JSON de análisis.`;
-  const text = await askOllama({ model: MODELS.analyst, system: ANALYST_SYSTEM, user, temperature: 0.3 });
-  const json = extractJson(text);
-  if (!json) throw new Error('Analista no devolvió JSON válido');
-  return { raw: text, ...json };
+  return askAgent('analyst', { system: ANALYST_SYSTEM, user, temperature: 0.3 }, normalizeAnalyst);
 }
 
 const STRATEGIST_SYSTEM = `Eres un gestor de cartera disciplinado. Recibes el informe del analista, el saldo disponible en caja, las posiciones abiertas y las reglas de riesgo.
@@ -80,6 +142,20 @@ Responde ÚNICAMENTE con JSON válido:
   "limitPrice": "precio límite redondeado o null",
   "riskCheck": { "ok": true/false, "notes": "notas" }
 }`;
+
+function normalizeStrategist(json) {
+  const j = json && typeof json === 'object' ? json : null;
+  if (!j) return null;
+  const action = ['buy', 'sell', 'hold'].includes(j.action) ? j.action : 'hold';
+  const quantity = Number.isFinite(Number(j.quantity)) ? Number(j.quantity) : 0;
+  return {
+    action,
+    reasoning: String(j.reasoning || '').slice(0, 1000),
+    quantity: action === 'hold' ? 0 : Math.max(0, quantity),
+    limitPrice: j.limitPrice ?? null,
+    riskCheck: j.riskCheck && typeof j.riskCheck === 'object' ? j.riskCheck : { ok: true, notes: '' },
+  };
+}
 
 async function strategist({ assetData, analystReport, portfolio }) {
   const cfg = portfolio.cfg;
@@ -103,10 +179,7 @@ REGLAS:
 - Take-profit por posición: ${cfg.takeProfitPct}%
 
 Decide la acción y responde SOLO el JSON.`;
-  const text = await askOllama({ model: MODELS.strategist, system: STRATEGIST_SYSTEM, user, temperature: 0.2 });
-  const json = extractJson(text);
-  if (!json) throw new Error('Estratega no devolvió JSON válido');
-  return { raw: text, ...json };
+  return askAgent('strategist', { system: STRATEGIST_SYSTEM, user, temperature: 0.2 }, normalizeStrategist);
 }
 
 const AUDITOR_SYSTEM = `Eres un auditor de cartera. Recibes la decisión del estratega, los datos del activo y el estado de la cartera.
@@ -121,6 +194,20 @@ Responde ÚNICAMENTE con JSON válido:
   "adjustedQuantity": número (0 si no hay operación),
   "warnings": ["advertencia 1", "advertencia 2"]
 }`;
+
+function normalizeAuditor(json) {
+  const j = json && typeof json === 'object' ? json : null;
+  if (!j) return null;
+  const approval = j.approval === true;
+  const adjustedAction = ['buy', 'sell', 'hold'].includes(j.adjustedAction) ? j.adjustedAction : null;
+  return {
+    approval,
+    reasoning: String(j.reasoning || '').slice(0, 1000),
+    adjustedAction,
+    adjustedQuantity: Number.isFinite(Number(j.adjustedQuantity)) ? Number(j.adjustedQuantity) : 0,
+    warnings: Array.isArray(j.warnings) ? j.warnings.map(String).slice(0, 5) : [],
+  };
+}
 
 async function auditor({ assetData, strategistDecision, portfolio }) {
   const user = `DECISIÓN DEL ESTRATEGA para ${assetData.symbol}:
@@ -139,10 +226,7 @@ Reglas vigentes:
 - Stop-loss: ${portfolio.cfg.stopLossPct}%
 
 Valida la decisión y responde SOLO el JSON.`;
-  const text = await askOllama({ model: MODELS.auditor, system: AUDITOR_SYSTEM, user, temperature: 0.1 });
-  const json = extractJson(text);
-  if (!json) throw new Error('Auditor no devolvió JSON válido');
-  return { raw: text, ...json };
+  return askAgent('auditor', { system: AUDITOR_SYSTEM, user, temperature: 0.1 }, normalizeAuditor);
 }
 
 export const agents = { analyst, strategist, auditor };

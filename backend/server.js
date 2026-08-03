@@ -10,9 +10,12 @@ import {
   resetPortfolio,
   startAutoCycle,
   MODELS,
+  maybeSendWithdrawalAlert,
 } from './investments/orchestrator.js';
 import { getConfig, saveConfig } from './investments/store.js';
 import * as broker from './investments/broker.js';
+import { sendAlert, buildErrorEmail, isMailConfigured } from './investments/notifier.js';
+import { startWatchdog, getWatchdogStatus } from './investments/watchdog.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -36,7 +39,7 @@ function opencodeHeaders() {
 }
 
 app.get('/api/health', async (req, res) => {
-  const status = { ollama: 'down', opencode: 'down' };
+  const status = { ollama: 'down', opencode: 'down', watchdog: getWatchdogStatus() };
   try {
     const r = await fetch(`${OLLAMA_URL}/api/version`, { signal: AbortSignal.timeout(3000) });
     status.ollama = r.ok ? 'up' : 'down';
@@ -240,6 +243,7 @@ app.get('/api/invest/status', async (req, res) => {
 app.get('/api/invest/config', (req, res) => {
   const cfg = getConfig();
   const lk = cfg.liveKeys || {};
+  const mc = cfg.mailConfig || {};
   const masked = {
     ...cfg,
     liveKeys: {
@@ -249,6 +253,15 @@ app.get('/api/invest/config', (req, res) => {
       alpacaSecret: lk.alpacaSecret ? '****' : '',
       alpacaLive: !!lk.alpacaLive,
     },
+    mailConfig: {
+      smtpHost: mc.smtpHost,
+      smtpPort: mc.smtpPort,
+      smtpUser: mc.smtpUser,
+      smtpPass: mc.smtpPass ? '****' : '',
+      fromEmail: mc.fromEmail,
+      destEmail: mc.destEmail,
+    },
+    mailConfigured: isMailConfigured(),
   };
   res.json(masked);
 });
@@ -256,7 +269,61 @@ app.get('/api/invest/config', (req, res) => {
 app.post('/api/invest/config', (req, res) => {
   const patch = req.body || {};
   const cfg = saveConfig(patch);
-  res.json(cfg);
+  const mc = cfg.mailConfig || {};
+  res.json({
+    ok: true,
+    ...cfg,
+    mailConfig: {
+      smtpHost: mc.smtpHost,
+      smtpPort: mc.smtpPort,
+      smtpUser: mc.smtpUser,
+      smtpPass: mc.smtpPass ? '****' : '',
+      fromEmail: mc.fromEmail,
+      destEmail: mc.destEmail,
+    },
+    mailConfigured: isMailConfigured(),
+  });
+});
+
+// Guarda la configuración de correo para las alertas de retiro.
+app.post('/api/invest/mail/config', (req, res) => {
+  const { smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, destEmail, mailNotifyWithdrawal, minWithdrawalProfit, withdrawalAlertCooldownH } = req.body || {};
+  const patch = { mailConfig: { ...(getConfig().mailConfig || {}) } };
+  if (smtpHost != null) patch.mailConfig.smtpHost = smtpHost.trim();
+  if (smtpPort != null) patch.mailConfig.smtpPort = Number(smtpPort);
+  if (smtpUser != null) patch.mailConfig.smtpUser = smtpUser.trim();
+  if (smtpPass != null && smtpPass !== '****') patch.mailConfig.smtpPass = smtpPass.trim();
+  if (fromEmail != null) patch.mailConfig.fromEmail = fromEmail.trim();
+  if (destEmail != null) patch.mailConfig.destEmail = destEmail.trim();
+  if (mailNotifyWithdrawal != null) patch.mailNotifyWithdrawal = !!mailNotifyWithdrawal;
+  if (minWithdrawalProfit != null) patch.minWithdrawalProfit = Number(minWithdrawalProfit);
+  if (withdrawalAlertCooldownH != null) patch.withdrawalAlertCooldownH = Number(withdrawalAlertCooldownH);
+  const cfg = saveConfig(patch);
+  res.json({ ok: true, mailConfigured: isMailConfigured(), mailConfig: cfg.mailConfig, mailNotifyWithdrawal: cfg.mailNotifyWithdrawal });
+});
+
+// Envía un correo de prueba para validar la configuración.
+app.post('/api/invest/mail/test', async (req, res) => {
+  try {
+    const result = await sendAlert({
+      subject: '✅ Miku Invest: correo de prueba',
+      html: '<h2>Miku Invest</h2><p>Si recibes este correo, las alertas de retiro funcionarán automáticamente.</p>',
+      text: 'Miku Invest — correo de prueba. Las alertas de retiro funcionarán automáticamente.',
+    });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Alerta de retiro: dispara una revisión manual del estado (para probar sin esperar al ciclo).
+app.post('/api/invest/mail/withdrawal-alert', async (req, res) => {
+  try {
+    const result = await maybeSendWithdrawalAlert();
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 app.post('/api/invest/reset', (req, res) => {
@@ -308,4 +375,5 @@ app.get('*', (req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Miku backend escuchando en http://localhost:${PORT}`);
   startAutoCycle();
+  startWatchdog(60000);
 });

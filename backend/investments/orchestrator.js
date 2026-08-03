@@ -6,11 +6,62 @@ import { agents, MODELS } from './agents.js';
 import { getConfig, getState, saveState, resetState } from './store.js';
 import * as broker from './broker.js';
 import * as alpaca from './alpaca.js';
+import { sendAlert, buildWithdrawalEmail, buildErrorEmail, isMailConfigured } from './notifier.js';
 
 let running = false;
 
 function round2(x) {
   return Math.round(x * 100) / 100;
+}
+
+// Ganancias realizadas = suma de P&L de operaciones de venta.
+export function computeStats() {
+  const cfg = getConfig();
+  const state = getState();
+  const p = computePortfolio(cfg, state);
+  let realizedProfit = 0;
+  const sellTrades = state.trades.filter((t) => t.action === 'sell');
+  for (const t of sellTrades) {
+    realizedProfit += (t.price - t.avgCost) * t.qty || 0;
+  }
+  realizedProfit = round2(realizedProfit);
+  const profit = round2(p.capitalTotal - cfg.initialCash);
+  const profitPct = cfg.initialCash ? (profit / cfg.initialCash) * 100 : 0;
+  return {
+    capitalTotal: p.capitalTotal,
+    cash: state.cash,
+    holdingsValue: p.holdingsValue,
+    unrealized: round2(p.unrealized),
+    realizedProfit,
+    profit,
+    profitPct,
+  };
+}
+
+// Decide si hay que alertar de retiro según ganancias realizadas y cooldown.
+export async function maybeSendWithdrawalAlert() {
+  const cfg = getConfig();
+  const state = getState();
+  if (!cfg.mailNotifyWithdrawal || !isMailConfigured()) return null;
+  if (state.mode !== 'live' && state.mode !== 'simulation') return null;
+
+  const stats = computeStats();
+  if (stats.realizedProfit < (cfg.minWithdrawalProfit || 10)) return null;
+
+  const cooldownMs = (cfg.withdrawalAlertCooldownH || 24) * 3600 * 1000;
+  if (cfg.withdrawalAlertSentAt && Date.now() - cfg.withdrawalAlertSentAt < cooldownMs) return null;
+
+  try {
+    const email = buildWithdrawalEmail({ stats });
+    const result = await sendAlert(email);
+    state.withdrawalAlertSentAt = Date.now();
+    saveState();
+    console.log(`[invest] alerta de retiro enviada ($${stats.realizedProfit.toFixed(2)}): ${result.to}`);
+    return { ...result, stats };
+  } catch (e) {
+    console.error(`[invest] no se pudo enviar alerta de retiro: ${e.message}`);
+    return { error: e.message };
+  }
 }
 
 export function portfolioSnapshot() {
@@ -62,8 +113,24 @@ function executeTrade(cfg, state, asset, price, decision) {
     const gross = qty * price;
     const fee = gross * feeRate;
     state.cash = round2(state.cash + gross - fee);
+    const soldAvgCost = existing.avgPrice;
     existing.qty = round2(existing.qty - qty);
     if (existing.qty <= 0.0000001) delete state.positions[asset.symbol];
+    const st = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      at: Date.now(),
+      symbol: asset.symbol,
+      market: asset.market,
+      action: decision.action,
+      qty,
+      price,
+      avgCost: soldAvgCost,
+      fee: round2((qty * price) * feeRate),
+      mode: state.mode,
+    };
+    state.trades.push(st);
+    saveState();
+    return st;
   }
   const trade = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -111,12 +178,13 @@ async function executeLive(cfg, state, asset, price, decision) {
     }
 
     if (decision.action === 'sell') {
-      const held = await broker.getBinanceBalance(symbol.replace(quoteAsset, ''));
-      let qty = Number(decision.quantity) || held.free;
-      qty = Math.min(qty, held.free);
+      const held = await broker.getBinanceHeldQty(symbol);
+      let qty = Number(decision.quantity) || held;
+      qty = Math.min(qty, held);
       if (qty <= 0) return { skipped: true, reason: `No hay saldo de ${symbol} para vender` };
+      const avgCost = await broker.getBinanceAvgCost(symbol);
       const order = await broker.placeBinanceOrder({ symbol, side: 'SELL', quantity: qty });
-      recordLiveTrade(state, asset, 'sell', order);
+      recordLiveTrade(state, asset, 'sell', order, avgCost);
       return { order };
     }
   }
@@ -141,10 +209,12 @@ async function executeLive(cfg, state, asset, price, decision) {
       let qty = Number(decision.quantity) || held;
       qty = Math.min(qty, held);
       if (qty <= 0) return { skipped: true, reason: `No hay posición de ${asset.symbol} para vender` };
+      const avgCost = await alpaca.getPositionAvgCost(asset.symbol);
       const order = await broker.placeAlpacaOrder({ symbol: asset.symbol, side: 'sell', notional: null });
       if (!order.orderId && order.raw?.id) {
         return { skipped: true, reason: 'No se pudo ejecutar la orden' };
       }
+      recordLiveTrade(state, asset, 'sell', order, avgCost);
       return { order };
     }
   }
@@ -152,7 +222,7 @@ async function executeLive(cfg, state, asset, price, decision) {
   return { skipped: true, reason: 'Acción no ejecutable (hold)' };
 }
 
-function recordLiveTrade(state, asset, action, order) {
+function recordLiveTrade(state, asset, action, order, avgCost = 0) {
   const trade = {
     id: `live-${order.orderId || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`}`,
     at: order.at || Date.now(),
@@ -161,6 +231,7 @@ function recordLiveTrade(state, asset, action, order) {
     action,
     qty: order.executedQty,
     price: order.price,
+    avgCost,
     fee: 0,
     mode: 'live',
     brokerOrderId: order.orderId,
@@ -242,6 +313,11 @@ export async function runCycle({ assets = null, quiet = false } = {}) {
       }
     }
     saveState();
+    try {
+      await maybeSendWithdrawalAlert();
+    } catch (e) {
+      if (!quiet) console.error(`[invest] alerta de retiro: ${e.message}`);
+    }
     return results;
   } finally {
     running = false;
