@@ -1,0 +1,16 @@
+# Dependencias
+node_modules/
+
+# Build
+frontend/dist/
+
+# Configuración con API keys (Binance, Alpaca) - ¡NO SUBIR!
+backend/investments/config.json
+
+# Estado de la cartera de inversión
+backend/investments/state.json
+
+# Logs y temporales
+*.log
+.DS_Store
+Thumbs.db
