@@ -1,15 +1,16 @@
 :root {
-  --miku-green: #39c5bb;
-  --miku-teal: #1ea5a0;
-  --miku-dark: #0f1a1e;
-  --miku-bg: #0c1418;
-  --miku-surface: #142228;
-  --miku-surface2: #1b2e36;
-  --miku-border: #2a4048;
-  --miku-text: #e6f2f0;
-  --miku-text-dim: #8fb0b9;
-  --miku-accent: #8ee0d8;
-  --miku-pink: #ff8fa3;
+  --miku-green: #45e6e8;
+  --miku-teal: #2fd6df;
+  --miku-dark: #060712;
+  --miku-bg: #08081a;
+  --miku-surface: #130f2b;
+  --miku-surface2: #1c1640;
+  --miku-border: #3b2a6b;
+  --miku-text: #eef6ff;
+  --miku-text-dim: #a79cda;
+  --miku-accent: #4ff0ff;
+  --miku-pink: #ff4fd8;
+  --miku-magenta: #c44bff;
 }
 
 * {
@@ -63,7 +64,7 @@ html, body, #root {
   font-weight: 800;
   font-size: 20px;
   color: var(--miku-dark);
-  box-shadow: 0 0 18px rgba(57, 197, 187, 0.4);
+  box-shadow: 0 0 18px rgba(79, 240, 255, 0.4);
   flex-shrink: 0;
 }
 
@@ -130,8 +131,8 @@ html, body, #root {
 
 .engine-btn.active {
   border-color: var(--miku-green);
-  background: rgba(57, 197, 187, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(57, 197, 187, 0.3);
+  background: rgba(79, 240, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(79, 240, 255, 0.3);
 }
 
 .engine-name {
@@ -168,7 +169,7 @@ html, body, #root {
 
 .session-item.active {
   border-color: var(--miku-green);
-  background: rgba(57, 197, 187, 0.12);
+  background: rgba(79, 240, 255, 0.12);
 }
 
 .session-title {
@@ -325,7 +326,7 @@ select:focus {
 .msg.assistant .msg-avatar {
   background: linear-gradient(135deg, var(--miku-green), var(--miku-teal));
   color: var(--miku-dark);
-  box-shadow: 0 0 12px rgba(57, 197, 187, 0.3);
+  box-shadow: 0 0 12px rgba(79, 240, 255, 0.3);
 }
 
 .msg-bubble {
@@ -774,7 +775,7 @@ textarea {
 
 .broker-result.ok {
   border: 1px solid var(--miku-green);
-  background: rgba(57, 197, 187, 0.08);
+  background: rgba(79, 240, 255, 0.08);
 }
 
 .broker-result.fail {
@@ -908,7 +909,7 @@ textarea {
   height: 57px;
   object-fit: contain;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 12px rgba(57, 197, 187, 0.55));
+  filter: drop-shadow(0 0 12px rgba(79, 240, 255, 0.55));
   animation: miku-float 4s ease-in-out infinite;
 }
 
@@ -918,7 +919,7 @@ textarea {
   object-fit: contain;
   vertical-align: middle;
   margin-right: 6px;
-  filter: drop-shadow(0 0 6px rgba(57, 197, 187, 0.5));
+  filter: drop-shadow(0 0 6px rgba(79, 240, 255, 0.5));
 }
 
 .miku-hero {
@@ -927,7 +928,7 @@ textarea {
   object-fit: contain;
   margin: 0 auto 18px;
   display: block;
-  filter: drop-shadow(0 0 24px rgba(57, 197, 187, 0.6));
+  filter: drop-shadow(0 0 24px rgba(79, 240, 255, 0.6));
   animation: miku-float 4s ease-in-out infinite;
 }
 
@@ -969,7 +970,7 @@ textarea {
   width: 36px;
   height: 40px;
   object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(57, 197, 187, 0.5));
+  filter: drop-shadow(0 0 9px rgba(79, 240, 255, 0.6)) drop-shadow(0 0 18px rgba(255, 79, 216, 0.35));
 }
 
 @keyframes miku-float {
@@ -986,26 +987,63 @@ textarea {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--miku-teal), var(--miku-green));
+  background: linear-gradient(180deg, var(--miku-pink), var(--miku-magenta) 50%, var(--miku-teal));
   border-radius: 10px;
   border: 2px solid var(--miku-bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--miku-accent); }
 
-/* ============ Y2K / FONDO DE PANTALLA MIKU ============ */
+/* ============ NIGHTCORE / FONDO DE PANTALLA MIKU ============ */
 .main {
   background:
-    radial-gradient(circle at 20% 0%, rgba(142, 224, 216, 0.10), transparent 40%),
-    linear-gradient(rgba(7, 13, 16, 0.80), rgba(7, 13, 16, 0.94)),
+    radial-gradient(ellipse at 15% 0%, rgba(196, 75, 255, 0.16), transparent 45%),
+    radial-gradient(ellipse at 85% 10%, rgba(79, 240, 255, 0.14), transparent 40%),
+    linear-gradient(rgba(8, 8, 26, 0.82), rgba(8, 8, 26, 0.94)),
     url('/miku-bg.jpg') no-repeat center / cover;
+}
+.main::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(rgba(255,255,255,0.025) 50%, rgba(0,0,0,0.06) 50%),
+    linear-gradient(rgba(255,79,216,0.05), rgba(79,240,255,0.05));
+  background-size: 100% 4px, 100% 100%;
+  mix-blend-mode: overlay;
+  animation: nc-flicker 6s steps(60) infinite;
+}
+.main::after {
+  content: '';
+  position: fixed;
+  inset: -30%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(255,79,216,0.14), transparent 42%),
+    radial-gradient(circle at 75% 60%, rgba(79,240,255,0.13), transparent 42%),
+    radial-gradient(circle at 50% 90%, rgba(196,75,255,0.16), transparent 45%);
+  animation: nc-aurora 16s ease-in-out infinite alternate;
+}
+
+@keyframes nc-flicker {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+@keyframes nc-aurora {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(4%, -3%, 0) scale(1.05); }
+  66% { transform: translate3d(-3%, 4%, 0) scale(1.08); }
+  100% { transform: translate3d(2%, -2%, 0) scale(1.04); }
 }
 
 .logo h1 {
-  background: linear-gradient(180deg, #ffffff 0%, #8ee0d8 45%, #2ab3a8 60%, #0f6f74 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #ff4fd8 35%, #4ff0ff 70%, #2a3df0 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(255,255,255,0.5)) drop-shadow(0 2px 6px rgba(57,197,187,0.6));
+  filter: drop-shadow(0 1px 0 rgba(255,255,255,0.5)) drop-shadow(0 0 12px rgba(255,79,216,0.65));
 }
 
 .sidebar-miku {
@@ -1023,27 +1061,28 @@ textarea {
   height: auto;
   border-radius: 14px;
   object-fit: cover;
-  border: 3px solid rgba(142, 224, 216, 0.65);
-  outline: 2px solid rgba(255,255,255,0.18);
+  border: 3px solid rgba(79, 240, 255, 0.75);
+  outline: 2px solid rgba(255,79,216,0.55);
   outline-offset: 3px;
   box-shadow:
-    0 0 0 1px var(--miku-teal),
-    0 0 22px rgba(57, 197, 187, 0.65),
+    0 0 0 1px var(--miku-magenta),
+    0 0 26px rgba(79, 240, 255, 0.7),
+    0 0 42px rgba(255, 79, 216, 0.35),
     0 10px 24px rgba(0,0,0,0.55),
     inset 0 0 18px rgba(255,255,255,0.12);
   animation: miku-neon 3s ease-in-out infinite;
 }
 
 @keyframes miku-neon {
-  0%, 100% { box-shadow: 0 0 0 1px var(--miku-teal), 0 0 16px rgba(57,197,187,0.5), 0 10px 24px rgba(0,0,0,0.55), inset 0 0 18px rgba(255,255,255,0.10); }
-  50% { box-shadow: 0 0 0 1px var(--miku-teal), 0 0 30px rgba(57,197,187,0.9), 0 10px 24px rgba(0,0,0,0.55), inset 0 0 30px rgba(255,255,255,0.22); }
+  0%, 100% { box-shadow: 0 0 0 1px var(--miku-teal), 0 0 16px rgba(79,240,255,0.5), 0 10px 24px rgba(0,0,0,0.55), inset 0 0 18px rgba(255,255,255,0.10); }
+  50% { box-shadow: 0 0 0 1px var(--miku-teal), 0 0 30px rgba(79,240,255,0.9), 0 10px 24px rgba(0,0,0,0.55), inset 0 0 30px rgba(255,255,255,0.22); }
 }
 
 .miku-caption {
   font-size: 11px;
   color: var(--miku-accent);
   letter-spacing: 0.4px;
-  text-shadow: 0 0 8px rgba(57,197,187,0.8);
+  text-shadow: 0 0 8px rgba(79,240,255,0.8);
 }
 
 .console-grid {
@@ -1068,7 +1107,7 @@ textarea {
   font-size: 22px;
   font-weight: 800;
   color: var(--miku-accent);
-  text-shadow: 0 0 12px rgba(57,197,187,0.6);
+  text-shadow: 0 0 12px rgba(79,240,255,0.6);
 }
 
 .cm-label {
@@ -1103,7 +1142,7 @@ textarea {
   color: #fff;
   transition: all 0.12s;
 }
-.y2n:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 5px 0 rgba(0,0,0,0.35), 0 10px 20px rgba(57,197,187,0.4); }
+.y2n:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 5px 0 rgba(0,0,0,0.35), 0 10px 20px rgba(79,240,255,0.4); }
 .y2n:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 1px 0 rgba(0,0,0,0.35); }
 .y2n.play { background-color: var(--miku-teal); }
 .y2n.pause { background: linear-gradient(180deg, #ffc24d, #e8902a); }

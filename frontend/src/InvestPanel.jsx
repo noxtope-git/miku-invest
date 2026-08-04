@@ -58,6 +58,7 @@ export default function InvestPanel() {
       () => (d.reason || ''));
     onEvent('cycle-done', 'done', (d) => `${d.symbol} · CICLO COMPLETADO`, () => 'Evaluación del activo finalizada.');
     onEvent('cycle-error', 'error', (d) => `${d.symbol} · ERROR`, () => (d.error || ''));
+    es.addEventListener('learn', (e) => { const d = JSON.parse(e.data); appendFeed('learn', '🧠 IA APRENDIÓ', `${d.stats?.tradesEvaluated ?? '—'} ops evaluadas · acierto ${d.stats?.winRate != null ? `${d.stats.winRate}%` : '—'}`, (d.summary || `Nuevas lecciones: ${(d.lessons || []).length}`)); });
     es.addEventListener('system', (e) => { const d = JSON.parse(e.data); appendFeed('sys', 'SISTEMA', d.message || ''); });
     return () => { es.close(); setLiveConnected(false); };
   }, [appendFeed]);
