@@ -6,6 +6,7 @@
 
 import { askLLM } from './llm.js';
 import { extractJson } from './marketdata.js';
+import { feedbackForPrompt } from './learn.js';
 
 const isGoogle = (process.env.MIKU_LLM_PROVIDER || 'ollama') === 'google';
 
@@ -144,9 +145,10 @@ function normalizeAnalyst(json) {
 }
 
 async function analyst(assetData) {
+  const learning = feedbackForPrompt('analyst');
   const user = `DATOS TÉCNICOS DE ${assetData.symbol} (${assetData.market.toUpperCase()}):
 ${formatIndicators(assetData)}
-
+${learning ? `\n${learning}\n` : ''}
 EmitE tu informe JSON de análisis.`;
   return askAgent('analyst', { system: ANALYST_SYSTEM, user, temperature: 0.3 }, normalizeAnalyst);
 }
@@ -191,6 +193,7 @@ async function strategist({ assetData, analystReport, portfolio }) {
     ? `Tienes posición abierta: ${position.qty} unidades a precio medio ${position.avgPrice} (abierta ${new Date(position.openedAt).toISOString()})`
     : 'No tienes posición abierta en este activo.';
 
+  const learning = feedbackForPrompt('strategist');
   const user = `INFORME DEL ANALISTA para ${assetData.symbol}:
 ${JSON.stringify(analystReport, null, 2)}
 
@@ -204,7 +207,7 @@ REGLAS:
 - Máximo % del capital por posición: ${cfg.maxPositionPct}%
 - Stop-loss por posición: ${cfg.stopLossPct}%
 - Take-profit por posición: ${cfg.takeProfitPct}%
-
+${learning ? `\n${learning}\n` : ''}
 Decide la acción y responde SOLO el JSON.`;
   return askAgent('strategist', { system: STRATEGIST_SYSTEM, user, temperature: 0.2 }, normalizeStrategist);
 }
@@ -237,6 +240,7 @@ function normalizeAuditor(json) {
 }
 
 async function auditor({ assetData, strategistDecision, portfolio }) {
+  const learning = feedbackForPrompt('auditor');
   const user = `DECISIÓN DEL ESTRATEGA para ${assetData.symbol}:
 ${JSON.stringify(strategistDecision, null, 2)}
 
@@ -251,7 +255,7 @@ ESTADO DE LA CARTERA:
 Reglas vigentes:
 - Máx % posición: ${portfolio.cfg.maxPositionPct}%
 - Stop-loss: ${portfolio.cfg.stopLossPct}%
-
+${learning ? `\n${learning}\n` : ''}
 Valida la decisión y responde SOLO el JSON.`;
   return askAgent('auditor', { system: AUDITOR_SYSTEM, user, temperature: 0.1 }, normalizeAuditor);
 }

@@ -32,6 +32,8 @@ export default function InvestPanel() {
   const [simMsg, setSimMsg] = useState(null);
   const [liveFeed, setLiveFeed] = useState([]);
   const [liveConnected, setLiveConnected] = useState(false);
+  const [learn, setLearn] = useState(null);
+  const [learning, setLearning] = useState(false);
 
   const appendFeed = useCallback((kind, title, body, meta) => {
     setLiveFeed((f) => [{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, kind, title, body, meta, ts: Date.now() }, ...f].slice(0, 15));
@@ -70,6 +72,7 @@ export default function InvestPanel() {
       setStatus(s);
       setConfig(c);
       setBroker(b);
+      fetch('/api/invest/learn').then((r) => r.json()).then((d) => setLearn(d.ok ? d : null)).catch(() => {});
       const mc = c?.mailConfig || {};
       setMailForm((f) => ({
         ...f,
@@ -155,6 +158,22 @@ export default function InvestPanel() {
       await refresh();
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const forceLearn = async () => {
+    setLearning(true);
+    setError('');
+    try {
+      const r = await fetch('/api/invest/learn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setLearn({ ...(learn || {}), ...d.exp });
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLearning(false);
     }
   };
 
@@ -376,6 +395,50 @@ export default function InvestPanel() {
             })}
           </div>
         )}
+      </section>
+
+      <section className="invest-section">
+        <div className="broker-head">
+          <h3 style={{ margin: 0 }}>🧠 IA · Aprendizaje por reflexión</h3>
+          <span className={`status-dot ${learn?.enabled ? 'dot-up' : 'dot-down'}`} />
+          <span className="dim" style={{ fontSize: 12 }}>{learn?.enabled ? 'aprendiendo de su historial real' : 'aprendizaje desactivado'}</span>
+          <button className="small-btn" onClick={forceLearn} disabled={learning}>
+            {learning ? 'Evaluando…' : 'Evaluar ahora'}
+          </button>
+        </div>
+        <div className="console-grid" style={{ marginTop: 10 }}>
+          <div className="console-metric"><span className="cm-value">{learn?.stats?.tradesEvaluated ?? '—'}</span><span className="cm-label">ops evaluadas</span></div>
+          <div className="console-metric"><span className="cm-value">{learn?.stats?.winRate != null ? `${learn.stats.winRate}%` : '—'}</span><span className="cm-label">acierto real</span></div>
+          <div className="console-metric"><span className="cm-value">{fmtMoney(learn?.stats?.realizedPnl)}</span><span className="cm-label">P&L realizado</span></div>
+          <div className="console-metric"><span className="cm-value">{learn?.lessons?.length ?? 0}</span><span className="cm-label">lecciones activas</span></div>
+        </div>
+        {learn?.lessons?.length > 0 && (
+          <div className="learn-lessons">
+            <p className="dim" style={{ marginBottom: 6, fontWeight: 700, fontSize: 13 }}>Lecciones que la IA se auto-impone en cada ciclo:</p>
+            <ul className="learn-list">
+              {learn.lessons.map((l, i) => (
+                <li key={i}>
+                  <span className={`learn-area ${l.area}`}>{l.area}</span>
+                  <span className="learn-text">{l.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {learn?.history?.length > 0 && (
+          <div className="learn-history">
+            <p className="dim" style={{ marginBottom: 6, fontSize: 12 }}>Autoevaluaciones recientes:</p>
+            {learn.history.slice(0, 4).map((h, i) => (
+              <p key={i} className="dim" style={{ fontSize: 12, margin: '2px 0' }}>
+                {fmtDate(h.at)} · {h.tradesEvaluated} ops · acierto {h.winRate != null ? `${h.winRate}%` : '—'} · P&L {fmtMoney(h.realizedPnl)} · {h.lessons} lecciones
+                {h.summary ? ` — ${h.summary}` : ''}
+              </p>
+            ))}
+          </div>
+        )}
+        <p className="dim" style={{ marginTop: 8, fontSize: 12 }}>
+          Cada ciclo, la IA revisa el resultado real de sus operaciones (aciertos, errores, rendimiento por sentimiento), se autoevalúa y extrae <strong>lecciones</strong> que inyecta en sus propios prompts (Analista · Estratega · Auditor) del siguiente ciclo. Así su razonamiento se condiciona a su experiencia y mejora con la práctica. La autoevaluación corre automáticamente cada {learn?.intervalMinutes ? Math.round(learn.intervalMinutes / 60) : 24} h (configurable) y puedes forzarla con el botón.
+        </p>
       </section>
 
       <section className="invest-section">

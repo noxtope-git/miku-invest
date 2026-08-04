@@ -19,6 +19,7 @@ import * as broker from './investments/broker.js';
 import { sendAlert, buildErrorEmail, isMailConfigured } from './investments/notifier.js';
 import { startWatchdog, getWatchdogStatus } from './investments/watchdog.js';
 import { subscribeLive } from './investments/live.js';
+import { getExperience, maybeAutoLearn } from './investments/learn.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -289,6 +290,25 @@ app.get('/api/invest/status', async (req, res) => {
     const status = await cycleStatus();
     const portfolio = portfolioSnapshot();
     res.json({ ...status, running: isCycleRunning(), autoCycle: getConfig().autoCycle, autoPaused: !!getConfig().autoPaused, portfolio });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Estado del bucle de auto-aprendizaje de la IA.
+app.get('/api/invest/learn', (req, res) => {
+  try {
+    res.json({ ok: true, ...getExperience() });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Fuerza una autoevaluación (la IA revisa su historial y extrae lecciones).
+app.post('/api/invest/learn', async (req, res) => {
+  try {
+    const exp = await maybeAutoLearn({ force: true });
+    res.json({ ok: true, exp });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }

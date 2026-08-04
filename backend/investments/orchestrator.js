@@ -8,6 +8,7 @@ import * as broker from './broker.js';
 import * as alpaca from './alpaca.js';
 import { sendAlert, buildWithdrawalEmail, buildErrorEmail, buildSimReviewEmail, isMailConfigured } from './notifier.js';
 import { emitLive } from './live.js';
+import { maybeAutoLearn } from './learn.js';
 
 let running = false;
 let manualStopRequested = false;
@@ -373,6 +374,11 @@ export async function runCycle({ assets = null, quiet = false } = {}) {
     } catch (e) {
       if (!quiet) console.error(`[invest] alerta de retiro: ${e.message}`);
     }
+    try {
+      await maybeAutoLearn();
+    } catch (e) {
+      if (!quiet) console.error(`[invest] autoevaluación: ${e.message}`);
+    }
     return results;
   } finally {
     running = false;
@@ -395,6 +401,7 @@ export function startAutoCycle() {
   autoTimer = setInterval(async () => {
     const cfg = getConfig();
     await maybeSendSimReviewAlert().catch((e) => console.error(`[invest] revisión sim: ${e.message}`));
+    await maybeAutoLearn().catch((e) => console.error(`[invest] autoevaluación: ${e.message}`));
     if (!cfg.autoCycle || running) return;
     const state = getState();
     const minMs = (cfg.minCycleIntervalMinutes || 30) * 60 * 1000;

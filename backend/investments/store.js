@@ -41,6 +41,8 @@ export const DEFAULT_CONFIG = {
   simReviewDays: 14, // duración del período de simulación (días)
   simReviewStartedAt: 0, // marca de tiempo cuando se activó el período
   simReviewSentAt: 0, // última vez que se envió el aviso de revisión
+  autoLearnEnabled: true, // la IA aprende de su propio historial (reflexión)
+  autoLearnIntervalMinutes: 1440, // cada cuánto se autoevalúa para extraer lecciones (24 h)
   assets: [
     { symbol: 'AAPL', market: 'stocks', label: 'Apple' },
     { symbol: 'MSFT', market: 'stocks', label: 'Microsoft' },
