@@ -56,6 +56,7 @@ export default function InvestPanel() {
       () => (d.reason || ''));
     onEvent('cycle-done', 'done', (d) => `${d.symbol} · CICLO COMPLETADO`, () => 'Evaluación del activo finalizada.');
     onEvent('cycle-error', 'error', (d) => `${d.symbol} · ERROR`, () => (d.error || ''));
+    es.addEventListener('system', (e) => { const d = JSON.parse(e.data); appendFeed('sys', 'SISTEMA', d.message || ''); });
     return () => { es.close(); setLiveConnected(false); };
   }, [appendFeed]);
 
@@ -142,6 +143,18 @@ export default function InvestPanel() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const controlTrain = async (action) => {
+    setError('');
+    try {
+      const r = await fetch('/api/invest/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      await refresh();
+    } catch (e) {
+      setError(e.message);
     }
   };
 
@@ -272,6 +285,11 @@ export default function InvestPanel() {
   const trades = st.trades || [];
   const positions = Object.entries(st.positions || {});
   const returnPct = cfg.initialCash ? ((p.capitalTotal - cfg.initialCash) / cfg.initialCash) * 100 : 0;
+  const isTraining = !!status.running || !!config.autoCycle;
+  const isPaused = !config.autoCycle && !status.running;
+  const totalCycles = st.cycles?.length || 0;
+  const totalTrades = st.trades?.length || 0;
+  const lastAtText = st.lastCycleAt ? new Date(st.lastCycleAt).toLocaleTimeString('es-ES') : '—';
 
   return (
     <div className="invest-panel">
@@ -298,6 +316,37 @@ export default function InvestPanel() {
         </div>
       </div>
 
+      <section className="invest-section console">
+        <div className="broker-head">
+          <h3 style={{ margin: 0 }}><img src="/miku-original.png" className="miku-mini" alt="Miku" /> Consola de entrenamiento <span className="spark">✦</span></h3>
+          <span className={`status-dot ${isTraining ? 'dot-up' : 'dot-down'}`} />
+          <span className="dim" style={{ fontSize: 12 }}>{isTraining ? 'IA en entrenamiento…' : isPaused ? 'en pausa' : 'detenida'}</span>
+        </div>
+
+        <div className="console-grid">
+          <div className="console-metric"><span className="cm-value">{totalCycles}</span><span className="cm-label">ciclos</span></div>
+          <div className="console-metric"><span className="cm-value">{totalTrades}</span><span className="cm-label">operaciones</span></div>
+          <div className="console-metric"><span className="cm-value">{config.assets?.length || 0}</span><span className="cm-label">activos</span></div>
+          <div className="console-metric"><span className="cm-value">{lastAtText}</span><span className="cm-label">última corrida</span></div>
+        </div>
+
+        <div className="console-controls">
+          {!config.autoCycle ? (
+            <button className="small-btn y2k play" onClick={() => controlTrain('resume')}>▶ Reanudar</button>
+          ) : (
+            <button className="small-btn y2k pause" onClick={() => controlTrain('pause')}>⏸ Pausar</button>
+          )}
+          <button className="small-btn y2k stop" onClick={() => controlTrain('stop')}>⏹ Detener</button>
+          <span className="console-hint">
+            Pausar detiene los ciclos automáticos · Detener interrumpe el ciclo en curso y pausa · Reanudar vuelve a operar.
+          </span>
+        </div>
+
+        {isTraining && (
+          <p className="console-running" style={{ marginTop: 10 }}>⚡ La IA está analizando mercados en vivo… mira el registro abajo.</p>
+        )}
+      </section>
+
       <section className="invest-section live-feed">
         <div className="broker-head">
           <h3 style={{ margin: 0 }}>Actividad de la IA en vivo ⚡</h3>
@@ -312,8 +361,8 @@ export default function InvestPanel() {
         ) : (
           <div className="live-list">
             {liveFeed.map((it) => {
-              const color = it.kind === 'error' ? 'var(--miku-pink)' : it.kind === 'trade' ? 'var(--miku-green)' : it.kind === 'decision' ? 'var(--miku-accent)' : 'var(--miku-text-dim)';
-              const icon = it.kind === 'stage' ? '▸' : it.kind === 'decision' ? '🎯' : it.kind === 'trade' ? '✅' : it.kind === 'skipped' ? '⏭' : it.kind === 'error' ? '❌' : '🏁';
+              const color = it.kind === 'error' ? 'var(--miku-pink)' : it.kind === 'trade' ? 'var(--miku-green)' : (it.kind === 'decision' || it.kind === 'sys') ? 'var(--miku-accent)' : 'var(--miku-text-dim)';
+              const icon = it.kind === 'stage' ? '▸' : it.kind === 'decision' ? '🎯' : it.kind === 'trade' ? '✅' : it.kind === 'skipped' ? '⏭' : it.kind === 'error' ? '❌' : it.kind === 'sys' ? '⚙' : '🏁';
               return (
                 <div key={it.id} className="live-item">
                   <span className="live-icon" style={{ color }}>{icon}</span>

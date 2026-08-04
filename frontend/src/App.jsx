@@ -239,6 +239,11 @@ export default function App() {
             </span>
           </div>
         </div>
+
+        <div className="sidebar-miku">
+          <img src="/miku-hero.jpg" alt="Miku" className="miku-photo" />
+          <span className="miku-caption">Miku cuida tus inversiones ✦</span>
+        </div>
       </aside>
 
       <main className="main">

@@ -10,6 +10,15 @@ import { sendAlert, buildWithdrawalEmail, buildErrorEmail, buildSimReviewEmail, 
 import { emitLive } from './live.js';
 
 let running = false;
+let manualStopRequested = false;
+
+export function requestStopCycle() {
+  manualStopRequested = true;
+}
+
+export function isCycleRunning() {
+  return running;
+}
 
 function round2(x) {
   return Math.round(x * 100) / 100;
@@ -338,19 +347,25 @@ async function runCycleForAsset(asset) {
 export async function runCycle({ assets = null, quiet = false } = {}) {
   if (running) throw new Error('Ya hay un ciclo en ejecución');
   running = true;
+  manualStopRequested = false;
   try {
     const cfg = getConfig();
     const list = assets || cfg.assets;
     const results = [];
     for (const asset of list) {
+      if (manualStopRequested) break;
       try {
         const cycle = await runCycleForAsset(asset);
         results.push({ asset: asset.symbol, ok: true, cycle });
       } catch (e) {
         results.push({ asset: asset.symbol, ok: false, error: e.message });
-        emitLive('cycle-error', { symbol: asset.symbol, at: Date.now(), error: e.message });
+        emitLive('cycle-error', { symbol: asset.symbol, at: Date.now(), error: `Detenido: ${e.message}` });
         if (!quiet) console.error(`[invest] error ${asset.symbol}: ${e.message}`);
       }
+    }
+    if (manualStopRequested) {
+      manualStopRequested = false;
+      emitLive('system', { at: Date.now(), message: 'Ciclo detenido manualmente.' });
     }
     saveState();
     try {

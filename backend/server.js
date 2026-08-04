@@ -11,6 +11,8 @@ import {
   startAutoCycle,
   MODELS,
   maybeSendWithdrawalAlert,
+  isCycleRunning,
+  requestStopCycle,
 } from './investments/orchestrator.js';
 import { getConfig, saveConfig } from './investments/store.js';
 import * as broker from './investments/broker.js';
@@ -262,11 +264,31 @@ app.get('/api/invest/events', (req, res) => {
   });
 });
 
+// Control de "entrenamiento": pausar, reanudar o detener la operación en vivo.
+app.post('/api/invest/control', (req, res) => {
+  const { action } = req.body || {};
+  try {
+    if (action === 'pause') {
+      saveConfig({ autoCycle: false, autoPaused: true });
+    } else if (action === 'resume') {
+      saveConfig({ autoCycle: true, autoPaused: false });
+    } else if (action === 'stop') {
+      requestStopCycle();
+      saveConfig({ autoCycle: false, autoPaused: true });
+    } else {
+      return res.status(400).json({ error: 'acción inválida' });
+    }
+    res.json({ ok: true, action, running: isCycleRunning(), autoCycle: getConfig().autoCycle });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 app.get('/api/invest/status', async (req, res) => {
   try {
     const status = await cycleStatus();
     const portfolio = portfolioSnapshot();
-    res.json({ ...status, portfolio });
+    res.json({ ...status, running: isCycleRunning(), autoCycle: getConfig().autoCycle, autoPaused: !!getConfig().autoPaused, portfolio });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }

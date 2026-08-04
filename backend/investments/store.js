@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG = {
   perTradeFeePct: 0.1, // comisión simulada por operación
   minCycleIntervalMinutes: 30, // protección contra ciclos demasiado seguidos
   autoCycle: false,
+  autoPaused: false,
   autoCycleCron: '0 18 * * 1-5', // ejemplo: 18:00 lun-vie
   liveKeys: { apiKey: '', apiSecret: '', alpacaKey: '', alpacaSecret: '', alpacaLive: false }, // API keys Binance + Alpaca (modo real)
   liveMaxNotionalPct: 0.5, // % de la caja real como máximo por orden
