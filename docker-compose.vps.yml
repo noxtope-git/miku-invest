@@ -17,6 +17,8 @@ services:
       - PORT=4000
       - MIKU_LLM_PROVIDER=${MIKU_LLM_PROVIDER:-google}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # Contraseña inicial del admin (login). Se lee del .env del VPS.
+      - MIKU_ADMIN_PASSWORD=${MIKU_ADMIN_PASSWORD:-}
       # En el VPS usamos siempre los modelos Gemini de la API (Flash, gratis).
       - MIKU_ANALYST_MODEL=gemini-flash-lite-latest
       - MIKU_STRATEGIST_MODEL=gemini-flash-lite-latest

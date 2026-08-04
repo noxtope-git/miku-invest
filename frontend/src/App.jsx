@@ -22,6 +22,10 @@ export default function App() {
   const [ocModel, setOcModel] = useState('deepseek-v4-flash-free');
   const [variant, setVariant] = useState('high');
   const [tab, setTab] = useState('chat');
+  const [auth, setAuth] = useState({ checked: false, authenticated: false, authEnabled: true });
+  const [pw, setPw] = useState('');
+  const [authErr, setAuthErr] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
 
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
@@ -57,6 +61,49 @@ export default function App() {
     const iv = setInterval(fetchHealth, 15000);
     return () => clearInterval(iv);
   }, [fetchHealth, fetchSessions, fetchOcModels]);
+
+  // Comprobar sesión al cargar.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/status');
+        const d = await r.json();
+        setAuth({ checked: true, authenticated: !!d.authenticated, authEnabled: !!d.authEnabled });
+      } catch {
+        setAuth({ checked: true, authenticated: false, authEnabled: true });
+      }
+    })();
+  }, []);
+
+  const doLogin = async () => {
+    setAuthBusy(true);
+    setAuthErr('');
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Error de autenticación');
+      setAuth({ checked: true, authenticated: true, authEnabled: true });
+      setPw('');
+      fetchSessions();
+      fetchOcModels();
+    } catch (e) {
+      setAuthErr(e.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const doLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    setAuth({ checked: true, authenticated: false, authEnabled: true });
+    setTab('chat');
+  };
 
   useEffect(() => {
     try {
@@ -161,6 +208,36 @@ export default function App() {
     }
   };
 
+  if (!auth.checked) {
+    return <div className="login-wrap"><div className="login-card dim">Cargando…</div></div>;
+  }
+
+  if (auth.authEnabled && !auth.authenticated) {
+    return (
+      <div className="login-wrap">
+        <div className="login-card">
+          <img src="/miku-original.png" className="login-miku" alt="Miku" />
+          <h1 className="login-title">Miku <span className="spark">✦</span></h1>
+          <p className="login-sub">Área privada · solo para ti</p>
+          <form onSubmit={(e) => { e.preventDefault(); doLogin(); }}>
+            <input
+              type="password"
+              className="login-input"
+              placeholder="Contraseña"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              autoFocus
+            />
+            <button type="submit" className="login-btn" disabled={authBusy || !pw}>
+              {authBusy ? 'Verificando…' : 'Entrar'}
+            </button>
+          </form>
+          {authErr && <p className="login-err">{authErr}</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -238,6 +315,9 @@ export default function App() {
               OpenCode {health.opencode === 'up' ? 'conectado' : 'caído'}
             </span>
           </div>
+          {auth.authEnabled && auth.authenticated && (
+            <button className="small-btn" onClick={doLogout} title="Cerrar sesión">🔒 Salir</button>
+          )}
         </div>
 
         <div className="sidebar-miku">

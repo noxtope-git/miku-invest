@@ -43,6 +43,11 @@ export const DEFAULT_CONFIG = {
   simReviewSentAt: 0, // última vez que se envió el aviso de revisión
   autoLearnEnabled: true, // la IA aprende de su propio historial (reflexión)
   autoLearnIntervalMinutes: 1440, // cada cuánto se autoevalúa para extraer lecciones (24 h)
+  authEnabled: false, // requiere login para entrar (protege datos y consola)
+  authSalt: '', // sal del hash de la contraseña del admin
+  authPasswordHash: '', // hash (scrypt) de la contraseña del admin
+  authSessions: {}, // token -> timestamp (sesiones activas)
+  authLock: { count: 0, until: 0 }, // bloqueo temporal por muchos intentos fallidos
   assets: [
     { symbol: 'AAPL', market: 'stocks', label: 'Apple' },
     { symbol: 'MSFT', market: 'stocks', label: 'Microsoft' },

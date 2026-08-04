@@ -20,6 +20,7 @@ import { sendAlert, buildErrorEmail, isMailConfigured } from './investments/noti
 import { startWatchdog, getWatchdogStatus } from './investments/watchdog.js';
 import { subscribeLive } from './investments/live.js';
 import { getExperience, maybeAutoLearn } from './investments/learn.js';
+import * as auth from './investments/auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -31,6 +32,11 @@ const OPENCODE_USER = process.env.OPENCODE_USER || 'opencode';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+// Detrás de Cloudflare (HTTPS) el proxy reenvía el esquema real.
+app.set('trust proxy', 1);
+
+// Activar la contraseña del entorno (primera vez).
+auth.bootstrapAdmin();
 
 const FRONTEND_DIST = path.join(import.meta.dirname, '..', 'frontend', 'dist');
 const FRONTEND_DIST_ALT = path.join(import.meta.dirname, 'frontend', 'dist');
@@ -225,6 +231,51 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 });
+
+// ============ AUTENTICACIÓN (solo tú entras) ============
+function setSessionCookie(res, token) {
+  const secure = res.req.secure || (res.req.headers['x-forwarded-proto'] || '').startsWith('https');
+  const attrs = ['HttpOnly', 'Path=/', `Max-Age=${30 * 24 * 3600 * 1000}`, 'SameSite=Strict'];
+  if (secure) attrs.push('Secure');
+  res.setHeader('Set-Cookie', `miku_session=${token}; ${attrs.join('; ')}`);
+}
+
+const requireAuth = (req, res, next) => {
+  if (!auth.isAuthEnabled()) return next();
+  if (auth.isAuthenticated(req)) return next();
+  if (req.originalUrl.startsWith('/api/')) return res.status(401).json({ error: 'No autorizado' });
+  return res.redirect('/');
+};
+
+app.post('/api/auth/login', (req, res) => {
+  const { password } = req.body || {};
+  const result = auth.login(String(password || ''));
+  if (!result.ok) return res.status(401).json({ error: result.error });
+  setSessionCookie(res, result.token);
+  res.json({ ok: true, authenticated: true });
+});
+
+app.post('/api/auth/logout', requireAuth, (req, res) => {
+  auth.logout(req);
+  res.setHeader('Set-Cookie', 'miku_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict');
+  res.json({ ok: true, authenticated: false });
+});
+
+app.get('/api/auth/status', (req, res) => {
+  res.json({ authEnabled: auth.isAuthEnabled(), authenticated: auth.isAuthenticated(req) });
+});
+
+app.post('/api/auth/password', requireAuth, (req, res) => {
+  const { current, next } = req.body || {};
+  if (!next || String(next).length < 8) return res.status(400).json({ error: 'La contraseña nueva debe tener al menos 8 caracteres.' });
+  const result = auth.changePassword(String(current || ''), String(next));
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json({ ok: true, authenticated: true });
+});
+
+app.use('/api/invest', requireAuth);
+app.use('/api/opencode', requireAuth);
+app.use('/api/chat', requireAuth);
 
 app.post('/api/invest/cycle', async (req, res) => {
   const { assets } = req.body || {};

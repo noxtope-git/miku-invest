@@ -992,6 +992,78 @@ textarea {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--miku-accent); }
 
+/* ============ LOGIN / ÁREA PRIVADA ============ */
+.login-wrap {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(142, 224, 216, 0.10), transparent 40%),
+    linear-gradient(rgba(7, 13, 16, 0.82), rgba(7, 13, 16, 0.94)),
+    url('/miku-bg.jpg') no-repeat center / cover;
+}
+.login-card {
+  width: 340px;
+  padding: 34px 30px;
+  border-radius: 18px;
+  background: var(--miku-surface);
+  border: 1px solid var(--miku-border);
+  border-top: 3px solid var(--miku-green);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(57, 197, 187, 0.15);
+  text-align: center;
+}
+.login-miku {
+  width: 92px;
+  height: auto;
+  border-radius: 12px;
+  border: 2px solid rgba(142, 224, 216, 0.6);
+  box-shadow: 0 0 20px rgba(57, 197, 187, 0.45);
+}
+.login-title {
+  font-size: 24px;
+  color: var(--miku-green);
+  letter-spacing: 1px;
+  margin: 12px 0 2px;
+}
+.login-sub {
+  color: var(--miku-text-dim);
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.login-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--miku-bg);
+  border: 1px solid var(--miku-border);
+  color: var(--miku-text);
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  text-align: center;
+}
+.login-input:focus {
+  border-color: var(--miku-green);
+  box-shadow: 0 0 0 1px var(--miku-green);
+}
+.login-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--miku-green), var(--miku-teal));
+  color: var(--miku-dark);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-err { color: var(--miku-pink); font-size: 13px; margin-top: 14px; }
+
 /* ============ Y2K / FONDO DE PANTALLA MIKU ============ */
 .main {
   background:
