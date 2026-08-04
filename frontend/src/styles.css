@@ -841,3 +841,63 @@ textarea {
   outline: none;
   border-color: var(--miku-teal);
 }
+
+/* Actividad en vivo (SSE) */
+.live-feed .live-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.live-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.live-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.live-body {
+  flex: 1;
+  background: var(--miku-surface2);
+  border: 1px solid var(--miku-border);
+  border-left: 3px solid var(--miku-text-dim);
+  border-radius: 8px;
+  padding: 8px 10px;
+  animation: live-in 0.25s ease-out;
+}
+
+@keyframes live-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.live-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.live-time {
+  float: right;
+  font-size: 11px;
+  color: var(--miku-text-dim);
+}
+
+.live-text {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--miku-text-dim);
+  line-height: 1.45;
+}

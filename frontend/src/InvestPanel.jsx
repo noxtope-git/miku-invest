@@ -27,6 +27,34 @@ export default function InvestPanel() {
   const [mailSaving, setMailSaving] = useState(false);
   const [mailTesting, setMailTesting] = useState(false);
   const [mailMsg, setMailMsg] = useState(null);
+  const [liveFeed, setLiveFeed] = useState([]);
+  const [liveConnected, setLiveConnected] = useState(false);
+
+  const appendFeed = useCallback((kind, title, body, meta) => {
+    setLiveFeed((f) => [{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, kind, title, body, meta, ts: Date.now() }, ...f].slice(0, 15));
+  }, []);
+
+  useEffect(() => {
+    if (!window.EventSource) return undefined;
+    const es = new EventSource('/api/invest/events');
+    es.onopen = () => setLiveConnected(true);
+    es.onerror = () => setLiveConnected(false);
+    const onEvent = (evtName, kind, titleFn, bodyFn) => es.addEventListener(evtName, (e) => {
+      const d = JSON.parse(e.data);
+      appendFeed(kind, titleFn(d), bodyFn(d), d);
+    });
+    onEvent('stage', 'stage', (d) => `${d.symbol} · ${(d.stage || '').toUpperCase()}`,
+      (d) => (d.data?.summary || d.data?.reasoning || JSON.stringify(d.data || {}).slice(0, 120)));
+    onEvent('decision', 'decision', (d) => `${d.symbol} · DECISIÓN ${ACTION_LABEL[d.decision?.action] || d.decision?.action}`,
+      () => (d.decision?.reasoning || ''));
+    onEvent('trade', 'trade', (d) => `${d.symbol} · OPERACIÓN ejecutada`,
+      (d) => `${ACTION_LABEL[d.trade?.action]} ${d.trade?.qty} @ ${fmtMoney(d.trade?.price)} · comisión ${fmtMoney(d.trade?.fee)}`);
+    onEvent('skipped', 'skipped', (d) => `${d.symbol} · Sin orden`,
+      () => (d.reason || ''));
+    onEvent('cycle-done', 'done', (d) => `${d.symbol} · CICLO COMPLETADO`, () => 'Evaluación del activo finalizada.');
+    onEvent('cycle-error', 'error', (d) => `${d.symbol} · ERROR`, () => (d.error || ''));
+    return () => { es.close(); setLiveConnected(false); };
+  }, [appendFeed]);
 
   const refresh = useCallback(async () => {
     try {
@@ -239,6 +267,37 @@ export default function InvestPanel() {
           <button className="small-btn danger" onClick={reset}>Reiniciar</button>
         </div>
       </div>
+
+      <section className="invest-section live-feed">
+        <div className="broker-head">
+          <h3 style={{ margin: 0 }}>Actividad de la IA en vivo ⚡</h3>
+          <span className={`status-dot ${liveConnected ? 'dot-up' : 'dot-down'}`} />
+          <span className="dim" style={{ fontSize: 12 }}>{liveConnected ? 'conectado en tiempo real' : 'sin conexión (reintentando…)'}</span>
+          {liveFeed.length > 0 && (
+            <button className="small-btn" style={{ marginLeft: 'auto' }} onClick={() => setLiveFeed([])}>Limpiar</button>
+          )}
+        </div>
+        {liveFeed.length === 0 ? (
+          <p className="dim" style={{ margin: 0 }}>Aún no hay actividad. Ejecuta un ciclo o espera al auto-cycle para ver el pipeline en vivo.</p>
+        ) : (
+          <div className="live-list">
+            {liveFeed.map((it) => {
+              const color = it.kind === 'error' ? 'var(--miku-pink)' : it.kind === 'trade' ? 'var(--miku-green)' : it.kind === 'decision' ? 'var(--miku-accent)' : 'var(--miku-text-dim)';
+              const icon = it.kind === 'stage' ? '▸' : it.kind === 'decision' ? '🎯' : it.kind === 'trade' ? '✅' : it.kind === 'skipped' ? '⏭' : it.kind === 'error' ? '❌' : '🏁';
+              return (
+                <div key={it.id} className="live-item">
+                  <span className="live-icon" style={{ color }}>{icon}</span>
+                  <div className="live-body" style={{ borderLeftColor: color }}>
+                    <span className="live-title" style={{ color }}>{it.title}</span>
+                    <span className="live-time">{new Date(it.ts).toLocaleTimeString('es-ES')}</span>
+                    <p className="live-text">{it.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="invest-section">
         <div className="broker-head">

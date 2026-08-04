@@ -7,6 +7,7 @@ import { getConfig, getState, saveState, resetState } from './store.js';
 import * as broker from './broker.js';
 import * as alpaca from './alpaca.js';
 import { sendAlert, buildWithdrawalEmail, buildErrorEmail, isMailConfigured } from './notifier.js';
+import { emitLive } from './live.js';
 
 let running = false;
 
@@ -259,12 +260,17 @@ async function runCycleForAsset(asset) {
   };
 
   const analystReport = await agents.analyst(assetData);
+  emitLive('stage', { symbol: asset.symbol, at: Date.now(), stage: 'analyst', data: analystReport });
   const strategistDecision = await agents.strategist({ assetData, analystReport, portfolio: portfolioForAgents });
+  emitLive('stage', { symbol: asset.symbol, at: Date.now(), stage: 'strategist', data: strategistDecision });
   const auditorReport = await agents.auditor({ assetData, strategistDecision, portfolio: portfolioForAgents });
+  emitLive('stage', { symbol: asset.symbol, at: Date.now(), stage: 'auditor', data: auditorReport });
 
   const finalDecision = auditorReport.approval === false
     ? { action: auditorReport.adjustedAction || 'hold', quantity: auditorReport.adjustedQuantity || 0, reasoning: auditorReport.reasoning }
     : { action: strategistDecision.action, quantity: strategistDecision.quantity, reasoning: strategistDecision.reasoning };
+
+  emitLive('decision', { symbol: asset.symbol, at: Date.now(), decision: finalDecision, price: indicators.price });
 
   let trade = null;
   let execution = null;
@@ -275,6 +281,8 @@ async function runCycleForAsset(asset) {
       execution = await executeLive(cfg, state, asset, indicators.price, finalDecision);
       if (execution.order) trade = state.trades[state.trades.length - 1] || null;
     }
+    if (trade) emitLive('trade', { symbol: asset.symbol, at: Date.now(), trade, mode: state.mode });
+    else if (execution) emitLive('skipped', { symbol: asset.symbol, at: Date.now(), reason: execution.reason || 'Orden no ejecutada' });
   }
 
   const cycle = {
@@ -293,6 +301,7 @@ async function runCycleForAsset(asset) {
   if (state.cycles.length > 200) state.cycles = state.cycles.slice(-200);
   state.lastCycleAt = Date.now();
   saveState();
+  emitLive('cycle-done', { symbol: asset.symbol, at: Date.now(), cycle });
   return cycle;
 }
 
@@ -309,6 +318,7 @@ export async function runCycle({ assets = null, quiet = false } = {}) {
         results.push({ asset: asset.symbol, ok: true, cycle });
       } catch (e) {
         results.push({ asset: asset.symbol, ok: false, error: e.message });
+        emitLive('cycle-error', { symbol: asset.symbol, at: Date.now(), error: e.message });
         if (!quiet) console.error(`[invest] error ${asset.symbol}: ${e.message}`);
       }
     }

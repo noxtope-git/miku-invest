@@ -16,6 +16,7 @@ import { getConfig, saveConfig } from './investments/store.js';
 import * as broker from './investments/broker.js';
 import { sendAlert, buildErrorEmail, isMailConfigured } from './investments/notifier.js';
 import { startWatchdog, getWatchdogStatus } from './investments/watchdog.js';
+import { subscribeLive } from './investments/live.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -230,6 +231,35 @@ app.post('/api/invest/cycle', async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
+});
+
+app.get('/api/invest/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const send = (evt, data) => {
+    try {
+      res.write(`event: ${evt}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      /* cliente desconectado */
+    }
+  };
+
+  const unsub = subscribeLive((evt, data) => send(evt, data));
+  const ping = setInterval(() => send('ping', { ts: Date.now() }), 25000);
+  send('ready', { ts: Date.now() });
+
+  req.on('close', () => {
+    clearInterval(ping);
+    try {
+      unsub();
+      res.end();
+    } catch {
+      /* ya cerrado */
+    }
+  });
 });
 
 app.get('/api/invest/status', async (req, res) => {
