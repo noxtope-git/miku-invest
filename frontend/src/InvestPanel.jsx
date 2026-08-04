@@ -279,7 +279,7 @@ export default function InvestPanel() {
 
       <div className="invest-header">
         <div>
-          <h2>Miku Invest</h2>
+          <h2 className="invest-title"><img src="/miku-original.png" className="miku-mini" alt="Miku" /> Miku Invest <span className="spark">✦</span></h2>
           <p className="dim">
             Modo: <strong className={st.mode === 'live' ? 'live' : ''}>{st.mode === 'live' ? '🔴 REAL' : '🟢 SIMULACIÓN'}</strong> · {cfg.assets?.length || 0} activos
           </p>

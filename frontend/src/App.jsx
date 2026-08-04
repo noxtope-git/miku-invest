@@ -165,10 +165,10 @@ export default function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="logo">
-          <div className="logo-badge">M</div>
+          <img src="/miku-original.png" className="miku-logo" alt="Miku" onError={(e) => { e.target.style.visibility = 'hidden'; }} />
           <div>
-            <h1>MIKU</h1>
-            <p>Asistente local</p>
+            <h1>MIKU <span className="spark">✦</span></h1>
+            <p>Asistente local kawaii ~</p>
           </div>
         </div>
 
@@ -248,8 +248,8 @@ export default function App() {
             <button className={`tab-btn ${tab === 'invest' ? 'active' : ''}`} onClick={() => setTab('invest')}>📈 Inversiones</button>
           </div>
           <div className="topbar-title">
-            <span className="logo-badge" style={{ width: 30, height: 30, fontSize: 15 }}>M</span>
-            {tab === 'invest' ? 'Miku Invest' : (engine === 'opencode' ? 'OpenCode · ' + (sessionID ? sessionID.slice(0, 12) : 'nueva sesión') : engine)}
+            <img src="/miku-original.png" className="miku-mini" alt="Miku" />
+            {tab === 'invest' ? 'Miku Invest ~' : (engine === 'opencode' ? 'OpenCode · ' + (sessionID ? sessionID.slice(0, 12) : 'nueva sesión') : engine)}
           </div>
           <div className="topbar-status">
           </div>
@@ -261,16 +261,16 @@ export default function App() {
         <>
         <div className="chat" ref={chatRef}>
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--miku-text-dim)', marginTop: 60 }}>
-              <div className="logo-badge" style={{ width: 72, height: 72, fontSize: 34, margin: '0 auto 20px' }}>M</div>
-              <h2 style={{ color: 'var(--miku-text)', marginBottom: 8 }}>¡Hola! Soy Miku</h2>
-              <p>Elige un motor de IA y empieza a chatear.</p>
+            <div className="chat-empty">
+              <img src="/miku-original.png" className="miku-hero" alt="Miku" />
+              <h2>¡Hola! Soy Miku ~ <span className="spark">✦</span></h2>
+              <p>Elige un motor de IA y empecemos a chatear.</p>
             </div>
           )}
 
           {messages.map((m, i) => (
             <div key={i} className={`msg ${m.role} ${m.role === 'assistant' && m.reasoning ? 'reasoning' : ''}`}>
-              <div className="msg-avatar">{m.role === 'user' ? 'Tú' : 'M'}</div>
+              <div className="msg-avatar">{m.role === 'user' ? 'Tú' : <img src="/miku-original.png" alt="Miku" />}</div>
               <div>
                 <div className="msg-bubble">{m.content}</div>
                 <div className="msg-meta">{m.engine}</div>
@@ -280,7 +280,7 @@ export default function App() {
 
           {loading && (
             <div className="msg assistant">
-              <div className="msg-avatar">M</div>
+              <div className="msg-avatar"><img src="/miku-original.png" alt="Miku" /></div>
               <div className="msg-bubble"><span className="typing"><span /><span /><span /></span></div>
             </div>
           )}

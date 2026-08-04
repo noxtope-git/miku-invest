@@ -901,3 +901,93 @@ textarea {
   color: var(--miku-text-dim);
   line-height: 1.45;
 }
+
+/* ============ KAWAII / MIKU ============ */
+.miku-logo {
+  width: 52px;
+  height: 57px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 12px rgba(57, 197, 187, 0.55));
+  animation: miku-float 4s ease-in-out infinite;
+}
+
+.miku-mini {
+  width: 24px;
+  height: 26px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 6px;
+  filter: drop-shadow(0 0 6px rgba(57, 197, 187, 0.5));
+}
+
+.miku-hero {
+  width: 180px;
+  height: 198px;
+  object-fit: contain;
+  margin: 0 auto 18px;
+  display: block;
+  filter: drop-shadow(0 0 24px rgba(57, 197, 187, 0.6));
+  animation: miku-float 4s ease-in-out infinite;
+}
+
+.chat-empty {
+  text-align: center;
+  color: var(--miku-text-dim);
+  margin-top: 48px;
+}
+
+.chat-empty h2 {
+  color: var(--miku-text);
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+.invest-title {
+  display: flex;
+  align-items: center;
+}
+
+.invest-title .miku-mini {
+  margin-right: 8px;
+}
+
+.spark {
+  color: var(--miku-pink);
+  font-size: 0.8em;
+  animation: sparkle 1.8s ease-in-out infinite;
+  display: inline-block;
+}
+
+.msg.assistant .msg-avatar {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.msg-avatar img {
+  width: 36px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(57, 197, 187, 0.5));
+}
+
+@keyframes miku-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  50% { opacity: 0.35; transform: scale(0.8) rotate(15deg); }
+}
+
+/* scrollbar kawaii */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--miku-teal), var(--miku-green));
+  border-radius: 10px;
+  border: 2px solid var(--miku-bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--miku-accent); }
