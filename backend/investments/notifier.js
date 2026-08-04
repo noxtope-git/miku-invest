@@ -75,3 +75,37 @@ export function buildErrorEmail({ message }) {
     text: `Miku Invest — Error\n\n${message}`,
   };
 }
+
+// Resumen del período de simulación (se envía al cumplirse simReviewDays).
+export function buildSimReviewEmail({ stats, state, cfg }) {
+  const buys = state.trades.filter((t) => t.action === 'buy').length;
+  const sells = state.trades.filter((t) => t.action === 'sell').length;
+  const holds = state.cycles.filter((c) => c.finalDecision?.action === 'hold').length;
+  const decisions = state.cycles.filter((c) => c.finalDecision?.action && c.finalDecision.action !== 'hold').length;
+  const avgConf = state.cycles.length
+    ? Math.round(state.cycles.reduce((s, c) => s + (c.analyst?.confidence || 0), 0) / state.cycles.length)
+    : 0;
+  const lines = [
+    `Período: ${simReviewDaysLabel(cfg.simReviewDays)} · Capital inicial: $${(cfg.initialCash || 0).toFixed(2)}`,
+    `Capital total final: $${stats.capitalTotal.toFixed(2)}`,
+    `Ganancia total: $${stats.profit.toFixed(2)} (${stats.profitPct.toFixed(2)}%)`,
+    `Ganancia realizada: $${stats.realizedProfit.toFixed(2)} · No realizada: $${stats.unrealized.toFixed(2)}`,
+    `Operaciones: ${buys} compras · ${sells} ventas · ${decisions} decisiones activas (${holds} holds)`,
+    `Ciclos analizados: ${state.cycles.length} · confianza media del analista: ${avgConf}%`,
+  ];
+  const lastTrades = state.trades.slice(-5).map((t) => `${t.symbol} ${t.action === 'buy' ? 'COMPRA' : 'VENTA'} ${t.qty} @ $${Number(t.price).toFixed(2)}`).join(' · ');
+  return {
+    subject: `📊 Miku Invest: revisión de simulación lista (${stats.profitPct >= 0 ? '+' : ''}${stats.profitPct.toFixed(2)}%)`,
+    html: `<h2>Miku Invest — Revisión del período de simulación</h2>
+<p>Se cumplieron los <strong>${simReviewDaysLabel(cfg.simReviewDays)}</strong> de simulación. Resumen:</p>
+<ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul>
+${lastTrades ? `<p><strong>Últimas operaciones:</strong> ${lastTrades}</p>` : '<p>No hubo operaciones ejecutadas en el período.</p>'}
+<p><strong>Siguiente paso sugerido:</strong> revisa este resumen en la web de Miku, valida que las decisiones hayan sido lógicas y decide si pasas a modo real (la web tiene el botón). En modo real el sistema ejecuta órdenes con fondos reales: pruébalo con una cifra pequeña.</p>
+<p style="color:#888;font-size:12px">Enviado automáticamente por Miku Invest · este correo no es asesoría financiera.</p>`,
+    text: `Miku Invest — Revisión del período de simulación\n\n${lines.join('\n')}\n\n${lastTrades ? `Últimas operaciones: ${lastTrades}\n\n` : ''}Revisa el resumen en la web de Miku y decide si pasas a modo real.`,
+  };
+}
+
+function simReviewDaysLabel(days) {
+  return days === 1 ? '1 día' : `${days || 14} días`;
+}

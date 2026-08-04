@@ -3,10 +3,10 @@
 
 import { getSeries, computeIndicators } from './marketdata.js';
 import { agents, MODELS } from './agents.js';
-import { getConfig, getState, saveState, resetState } from './store.js';
+import { getConfig, saveConfig, getState, saveState, resetState } from './store.js';
 import * as broker from './broker.js';
 import * as alpaca from './alpaca.js';
-import { sendAlert, buildWithdrawalEmail, buildErrorEmail, isMailConfigured } from './notifier.js';
+import { sendAlert, buildWithdrawalEmail, buildErrorEmail, buildSimReviewEmail, isMailConfigured } from './notifier.js';
 import { emitLive } from './live.js';
 
 let running = false;
@@ -61,6 +61,36 @@ export async function maybeSendWithdrawalAlert() {
     return { ...result, stats };
   } catch (e) {
     console.error(`[invest] no se pudo enviar alerta de retiro: ${e.message}`);
+    return { error: e.message };
+  }
+}
+
+// Avisa por correo al cumplirse el período de simulación (simReviewDays).
+export async function maybeSendSimReviewAlert() {
+  const cfg = getConfig();
+  if (!cfg.simReviewEnabled) return null;
+  if (!isMailConfigured()) {
+    console.error('[invest] revisión de simulación: correo no configurado');
+    return { error: 'correo no configurado' };
+  }
+  const days = cfg.simReviewDays || 14;
+  const start = cfg.simReviewStartedAt;
+  if (!start) return null;
+  const elapsed = Date.now() - start;
+  if (elapsed < days * 24 * 3600 * 1000) return null;
+
+  const cooldownMs = 24 * 3600 * 1000;
+  if (cfg.simReviewSentAt && Date.now() - cfg.simReviewSentAt < cooldownMs) return null;
+
+  const stats = computeStats();
+  try {
+    const email = buildSimReviewEmail({ stats, state: getState(), cfg });
+    const result = await sendAlert(email);
+    saveConfig({ simReviewSentAt: Date.now() });
+    console.log(`[invest] revisión de simulación enviada: ${result.to}`);
+    return { ...result, stats };
+  } catch (e) {
+    console.error(`[invest] no se pudo enviar revisión de simulación: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -349,6 +379,7 @@ export function startAutoCycle() {
   if (autoTimer) return;
   autoTimer = setInterval(async () => {
     const cfg = getConfig();
+    await maybeSendSimReviewAlert().catch((e) => console.error(`[invest] revisión sim: ${e.message}`));
     if (!cfg.autoCycle || running) return;
     const state = getState();
     const minMs = (cfg.minCycleIntervalMinutes || 30) * 60 * 1000;

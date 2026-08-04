@@ -36,6 +36,10 @@ export const DEFAULT_CONFIG = {
   mailNotifyWithdrawal: true, // enviar alerta cuando haya ganancias retirables
   minWithdrawalProfit: 10, // ganancia mínima realizada (USD) para alertar
   withdrawalAlertCooldownH: 24, // horas entre alertas de retiro
+  simReviewEnabled: false, // avisar por correo al terminar el período de simulación
+  simReviewDays: 14, // duración del período de simulación (días)
+  simReviewStartedAt: 0, // marca de tiempo cuando se activó el período
+  simReviewSentAt: 0, // última vez que se envió el aviso de revisión
   assets: [
     { symbol: 'AAPL', market: 'stocks', label: 'Apple' },
     { symbol: 'MSFT', market: 'stocks', label: 'Microsoft' },

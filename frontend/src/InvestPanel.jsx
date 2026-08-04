@@ -27,6 +27,9 @@ export default function InvestPanel() {
   const [mailSaving, setMailSaving] = useState(false);
   const [mailTesting, setMailTesting] = useState(false);
   const [mailMsg, setMailMsg] = useState(null);
+  const [simReview, setSimReview] = useState({ enabled: false, days: 14, startedAt: 0, sentAt: 0 });
+  const [simSaving, setSimSaving] = useState(false);
+  const [simMsg, setSimMsg] = useState(null);
   const [liveFeed, setLiveFeed] = useState([]);
   const [liveConnected, setLiveConnected] = useState(false);
 
@@ -75,6 +78,7 @@ export default function InvestPanel() {
         minWithdrawalProfit: c?.minWithdrawalProfit ?? f.minWithdrawalProfit,
         cooldown: c?.withdrawalAlertCooldownH ?? f.cooldown,
       }));
+      setSimReview((s) => ({ enabled: !!c?.simReviewEnabled, days: c?.simReviewDays ?? s.days, startedAt: c?.simReviewStartedAt || 0, sentAt: c?.simReviewSentAt || 0 }));
       if (c?.assets?.length && !selectedCycle) setSelectedCycle(null);
     } catch (e) {
       setError(e.message);
@@ -206,6 +210,32 @@ export default function InvestPanel() {
       setMailMsg({ ok: false, text: `Fallo al enviar: ${e.message}` });
     } finally {
       setMailTesting(false);
+    }
+  };
+
+  const saveSimReview = async () => {
+    setSimSaving(true);
+    setSimMsg(null);
+    try {
+      const enabling = !simReview.enabled;
+      const patch = { simReviewEnabled: enabling, simReviewDays: Math.max(1, Number(simReview.days) || 14) };
+      if (enabling) {
+        const start = simReview.startedAt || simReview.sentAt || Date.now();
+        patch.simReviewStartedAt = start;
+        patch.simReviewSentAt = 0;
+      } else {
+        patch.simReviewStartedAt = 0;
+        patch.simReviewSentAt = 0;
+      }
+      const r = await fetch('/api/invest/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setSimMsg({ ok: true, text: enabling ? 'Aviso activado: te escribiré por correo al final del período de simulación.' : 'Aviso desactivado.' });
+      await refresh();
+    } catch (e) {
+      setSimMsg({ ok: false, text: e.message });
+    } finally {
+      setSimSaving(false);
     }
   };
 
@@ -416,6 +446,26 @@ export default function InvestPanel() {
           </div>
         )}
         {mailMsg && <div className={`broker-result ${mailMsg.ok ? 'ok' : 'fail'}`}><p>{mailMsg.ok ? '✅ ' : '❌ '}{mailMsg.text}</p></div>}
+        <p className="dim" style={{ marginTop: 12, fontSize: 12 }}><strong>Revisión del período de simulación</strong></p>
+        <div className="broker-keys" style={{ marginTop: 6 }}>
+          <div className="broker-keygroup" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <label className="setting-label" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={simReview.enabled} onChange={(e) => setSimReview({ ...simReview, enabled: e.target.checked })} />
+              Avisarme por correo al terminar
+            </label>
+            <label className="setting-label" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="number" min="1" value={simReview.days} onChange={(e) => setSimReview({ ...simReview, days: e.target.value })} style={{ width: 60 }} />
+              día(s)
+            </label>
+            <button className="small-btn" onClick={saveSimReview} disabled={simSaving}>{simSaving ? 'Guardando…' : simReview.enabled ? 'Activar aviso' : 'Activar aviso'}</button>
+          </div>
+          <p className="dim" style={{ fontSize: 12, marginTop: 6 }}>
+            {simReview.enabled && simReview.startedAt
+              ? `⏳ Corriendo desde ${new Date(simReview.startedAt).toLocaleDateString('es-ES')}. Te avisaré alrededor del ${new Date(simReview.startedAt + simReview.days * 86400000).toLocaleString('es-ES')} con un resumen de la simulación.${simReview.sentAt ? ` · Último envío: ${new Date(simReview.sentAt).toLocaleString('es-ES')}` : ''}`
+              : 'Deja este aviso activo para recibir el resumen al final del período de simulación y decidir cuándo pasar al modo real.'}
+          </p>
+          {simMsg && <div className={`broker-result ${simMsg.ok ? 'ok' : 'fail'}`}><p>{simMsg.ok ? '✅ ' : '❌ '}{simMsg.text}</p></div>}
+        </div>
         <p className="dim" style={{ marginTop: 8, fontSize: 12 }}>
           El sistema revisa tras cada ciclo si hay <strong>ganancias realizadas</strong> (ventas con beneficio) iguales o superiores al mínimo configurado y te avisa por correo cuándo retirar desde el broker. <strong>El sistema no puede retirar fondos</strong>: solo te lo recuerda.
         </p>
