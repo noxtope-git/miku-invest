@@ -1,0 +1,30 @@
+name: Desplegar en VPS (pull + restart)
+
+on:
+  workflow_run:
+    workflows: ["Build y publica imagen Miku (GHCR)"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar clave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull y recrear contenedor en el VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'cd ~/miku-invest && sudo docker compose -f docker-compose.vps.yml pull && sudo docker compose -f docker-compose.vps.yml up -d'
+
+      - name: Verificar salud del contenedor
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'sleep 5 && sudo docker ps --filter name=miku-app --format "{{.Status}}"'
