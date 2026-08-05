@@ -1,12 +1,17 @@
 # Miku Invest — perfil para VPS de 1 GB RAM (Oracle VM.Standard.E2.1.Micro).
 # Sin Ollama: los LLM se invocan vía la API gratuita de Google AI Studio (Gemini).
+# La imagen se publica automáticamente en GHCR (GitHub Actions) y el VPS la
+# descarga (pull) sin necesidad de compilar. Si la imagen no existe aún en
+# GHCR, build local la compila igualmente.
 # Uso:
 #   export MIKU_LLM_PROVIDER=google
 #   export GOOGLE_API_KEY=AIza...
-#   docker compose -f docker-compose.vps.yml up -d --build
+#   docker compose -f docker-compose.vps.yml pull
+#   docker compose -f docker-compose.vps.yml up -d
 
 services:
   miku:
+    image: ghcr.io/${GITHUB_REPOSITORY:-noxtope-git/miku-invest}:latest
     build:
       context: .
       dockerfile: Dockerfile
