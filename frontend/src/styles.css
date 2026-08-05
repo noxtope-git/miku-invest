@@ -1062,6 +1062,22 @@ textarea {
   letter-spacing: 0.5px;
 }
 .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  user-select: none;
+}
+.login-remember input {
+  accent-color: var(--miku-teal);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
 .login-err { color: var(--miku-pink); font-size: 13px; margin-top: 14px; }
 
 /* ============ Y2K / FONDO DE PANTALLA MIKU ============ */

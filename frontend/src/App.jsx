@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InvestPanel from './InvestPanel.jsx';
+import { MIKU_ART } from './miku-art.js';
+
+if (typeof window !== 'undefined') {
+  console.log(MIKU_ART);
+}
 
 const ENGINES = [
   { id: 'gemma4:e4b', label: 'Gemma 4 E4B', desc: 'Muy rápido · Ligero (8B)' },
@@ -24,6 +29,7 @@ export default function App() {
   const [tab, setTab] = useState('chat');
   const [auth, setAuth] = useState({ checked: false, authenticated: false, authEnabled: true });
   const [pw, setPw] = useState('');
+  const [remember, setRemember] = useState(true);
   const [authErr, setAuthErr] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -82,7 +88,7 @@ export default function App() {
       const r = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
+        body: JSON.stringify({ password: pw, remember }),
       });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || 'Error de autenticación');
@@ -231,6 +237,14 @@ export default function App() {
             <button type="submit" className="login-btn" disabled={authBusy || !pw}>
               {authBusy ? 'Verificando…' : 'Entrar'}
             </button>
+            <label className="login-remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              Recordarme en este equipo
+            </label>
           </form>
           {authErr && <p className="login-err">{authErr}</p>}
         </div>

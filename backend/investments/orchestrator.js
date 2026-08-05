@@ -127,6 +127,47 @@ function markPositions(cfg, state, priceMap) {
   saveState();
 }
 
+// Cierre automático determinista: si una posición toca su stop-loss o
+// take-profit, se vende por completo. Así la IA siempre tiene operaciones
+// cerradas reales que evaluar y aprender. Devuelve los trades generados.
+function enforceLimits(cfg, state, priceMap) {
+  const sl = (cfg.stopLossPct || 5) / 100;
+  const tp = (cfg.takeProfitPct || 10) / 100;
+  const feeRate = (cfg.perTradeFeePct || 0.1) / 100;
+  const trades = [];
+  for (const sym of Object.keys(state.positions)) {
+    const pos = state.positions[sym];
+    const price = priceMap[sym];
+    if (price == null || pos.qty <= 0) continue;
+    const pnlPct = (price - pos.avgPrice) / pos.avgPrice;
+    if (pnlPct <= -sl || pnlPct >= tp) {
+      const gross = pos.qty * price;
+      const fee = gross * feeRate;
+      state.cash = round2(state.cash + gross - fee);
+      const soldAvgCost = pos.avgPrice;
+      const st = {
+        id: `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        at: Date.now(),
+        symbol: sym,
+        market: pos.market || '',
+        action: 'sell',
+        qty: round2(pos.qty),
+        price,
+        avgCost: soldAvgCost,
+        fee: round2(fee),
+        mode: state.mode,
+        reason: pnlPct <= -sl ? 'stop-loss' : 'take-profit',
+      };
+      state.trades.push(st);
+      trades.push(st);
+      delete state.positions[sym];
+      console.log(`[invest] cierre automático ${st.reason} ${sym} @${price} (P&L ${(pnlPct * 100).toFixed(2)}%)`);
+    }
+  }
+  if (trades.length) saveState();
+  return trades;
+}
+
 function executeTrade(cfg, state, asset, price, decision) {
   const feeRate = cfg.perTradeFeePct / 100;
   let qty = 0;
@@ -291,6 +332,7 @@ async function runCycleForAsset(asset) {
   const priceMap = {};
   priceMap[asset.symbol] = indicators.price;
   markPositions(cfg, state, priceMap);
+  enforceLimits(cfg, state, priceMap);
 
   const portfolio = computePortfolio(cfg, state);
   const portfolioForAgents = {

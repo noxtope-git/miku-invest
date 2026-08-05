@@ -21,6 +21,7 @@ import { startWatchdog, getWatchdogStatus } from './investments/watchdog.js';
 import { subscribeLive } from './investments/live.js';
 import { getExperience, maybeAutoLearn } from './investments/learn.js';
 import * as auth from './investments/auth.js';
+import { MIKU_ART } from './miku-art.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -233,9 +234,11 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // ============ AUTENTICACIÓN (solo tú entras) ============
-function setSessionCookie(res, token) {
+function setSessionCookie(res, token, remember = true) {
   const secure = res.req.secure || (res.req.headers['x-forwarded-proto'] || '').startsWith('https');
-  const attrs = ['HttpOnly', 'Path=/', `Max-Age=${30 * 24 * 3600 * 1000}`, 'SameSite=Strict'];
+  const maxAge = remember ? 30 * 24 * 3600 * 1000 : null;
+  const attrs = ['HttpOnly', 'Path=/', 'SameSite=Strict'];
+  if (maxAge) attrs.push(`Max-Age=${maxAge}`);
   if (secure) attrs.push('Secure');
   res.setHeader('Set-Cookie', `miku_session=${token}; ${attrs.join('; ')}`);
 }
@@ -248,10 +251,10 @@ const requireAuth = (req, res, next) => {
 };
 
 app.post('/api/auth/login', (req, res) => {
-  const { password } = req.body || {};
+  const { password, remember } = req.body || {};
   const result = auth.login(String(password || ''));
   if (!result.ok) return res.status(401).json({ error: result.error });
-  setSessionCookie(res, result.token);
+  setSessionCookie(res, result.token, remember !== false);
   res.json({ ok: true, authenticated: true });
 });
 
@@ -498,6 +501,7 @@ app.get('*', (req, res, next) => {
 });
 
 app.listen(PORT, () => {
+  console.log(MIKU_ART);
   console.log(`Miku backend escuchando en http://localhost:${PORT}`);
   startAutoCycle();
   // El watchdog solo tiene sentido con Ollama local; con Google se omite.
