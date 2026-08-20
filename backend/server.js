@@ -51,6 +51,34 @@ function opencodeHeaders() {
   return { Authorization: `Basic ${b64}`, 'Content-Type': 'application/json' };
 }
 
+// Oculta secretos (API keys, contraseñas, sesiones) antes de exponer la config.
+function maskConfig(cfg) {
+  const lk = cfg.liveKeys || {};
+  const mc = cfg.mailConfig || {};
+  return {
+    ...cfg,
+    liveKeys: {
+      apiKey: lk.apiKey ? '****' : '',
+      apiSecret: lk.apiSecret ? '****' : '',
+      alpacaKey: lk.alpacaKey ? '****' : '',
+      alpacaSecret: lk.alpacaSecret ? '****' : '',
+      alpacaLive: !!lk.alpacaLive,
+    },
+    mailConfig: {
+      smtpHost: mc.smtpHost,
+      smtpPort: mc.smtpPort,
+      smtpUser: mc.smtpUser,
+      smtpPass: mc.smtpPass ? '****' : '',
+      fromEmail: mc.fromEmail,
+      destEmail: mc.destEmail,
+    },
+    mailConfigured: isMailConfigured(),
+    authPasswordHash: cfg.authPasswordHash ? '****' : '',
+    authSalt: cfg.authSalt ? '****' : '',
+    authSessions: {},
+  };
+}
+
 app.get('/api/health', async (req, res) => {
   const status = { ollama: 'down', opencode: 'down', watchdog: getWatchdogStatus() };
   try {
@@ -343,7 +371,8 @@ app.get('/api/invest/status', async (req, res) => {
   try {
     const status = await cycleStatus();
     const portfolio = portfolioSnapshot();
-    res.json({ ...status, running: isCycleRunning(), autoCycle: getConfig().autoCycle, autoPaused: !!getConfig().autoPaused, portfolio });
+    const safePortfolio = { ...portfolio, cfg: maskConfig(portfolio.cfg) };
+    res.json({ ...status, running: isCycleRunning(), autoCycle: getConfig().autoCycle, autoPaused: !!getConfig().autoPaused, portfolio: safePortfolio });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
@@ -369,48 +398,13 @@ app.post('/api/invest/learn', async (req, res) => {
 });
 
 app.get('/api/invest/config', (req, res) => {
-  const cfg = getConfig();
-  const lk = cfg.liveKeys || {};
-  const mc = cfg.mailConfig || {};
-  const masked = {
-    ...cfg,
-    liveKeys: {
-      apiKey: lk.apiKey ? '****' : '',
-      apiSecret: lk.apiSecret ? '****' : '',
-      alpacaKey: lk.alpacaKey ? '****' : '',
-      alpacaSecret: lk.alpacaSecret ? '****' : '',
-      alpacaLive: !!lk.alpacaLive,
-    },
-    mailConfig: {
-      smtpHost: mc.smtpHost,
-      smtpPort: mc.smtpPort,
-      smtpUser: mc.smtpUser,
-      smtpPass: mc.smtpPass ? '****' : '',
-      fromEmail: mc.fromEmail,
-      destEmail: mc.destEmail,
-    },
-    mailConfigured: isMailConfigured(),
-  };
-  res.json(masked);
+  res.json(maskConfig(getConfig()));
 });
 
 app.post('/api/invest/config', (req, res) => {
   const patch = req.body || {};
   const cfg = saveConfig(patch);
-  const mc = cfg.mailConfig || {};
-  res.json({
-    ok: true,
-    ...cfg,
-    mailConfig: {
-      smtpHost: mc.smtpHost,
-      smtpPort: mc.smtpPort,
-      smtpUser: mc.smtpUser,
-      smtpPass: mc.smtpPass ? '****' : '',
-      fromEmail: mc.fromEmail,
-      destEmail: mc.destEmail,
-    },
-    mailConfigured: isMailConfigured(),
-  });
+  res.json({ ok: true, ...maskConfig(cfg) });
 });
 
 // Guarda la configuración de correo para las alertas de retiro.
@@ -427,7 +421,7 @@ app.post('/api/invest/mail/config', (req, res) => {
   if (minWithdrawalProfit != null) patch.minWithdrawalProfit = Number(minWithdrawalProfit);
   if (withdrawalAlertCooldownH != null) patch.withdrawalAlertCooldownH = Number(withdrawalAlertCooldownH);
   const cfg = saveConfig(patch);
-  res.json({ ok: true, mailConfigured: isMailConfigured(), mailConfig: cfg.mailConfig, mailNotifyWithdrawal: cfg.mailNotifyWithdrawal });
+  res.json({ ok: true, mailConfigured: isMailConfigured(), mailConfig: maskConfig(cfg).mailConfig, mailNotifyWithdrawal: cfg.mailNotifyWithdrawal });
 });
 
 // Envía un correo de prueba para validar la configuración.
