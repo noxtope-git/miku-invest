@@ -127,41 +127,93 @@ function markPositions(cfg, state, priceMap) {
   saveState();
 }
 
-// Cierre automático determinista: si una posición toca su stop-loss o
-// take-profit, se vende por completo. Así la IA siempre tiene operaciones
-// cerradas reales que evaluar y aprender. Devuelve los trades generados.
+// Cierre automático determinista de posiciones:
+// - Stop-loss fijo: vende todo si cae más de stopLossPct.
+// - Take-profit: vende una parte (takeProfitPartialPct%) y deja el resto correr.
+// - Trailing stop: tras la salida parcial, vende el resto si cae trailingStopPct%
+//   desde su máximo (nunca por debajo del precio de entrada = breakeven).
+function closePosition(cfg, state, sym, pos, price, reason) {
+  const feeRate = (cfg.perTradeFeePct || 0.1) / 100;
+  const gross = pos.qty * price;
+  const fee = gross * feeRate;
+  state.cash = round2(state.cash + gross - fee);
+  const st = {
+    id: `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    at: Date.now(),
+    symbol: sym,
+    market: pos.market || '',
+    action: 'sell',
+    qty: round2(pos.qty),
+    price,
+    avgCost: pos.avgPrice,
+    fee: round2(fee),
+    mode: state.mode,
+    reason,
+  };
+  state.trades.push(st);
+  delete state.positions[sym];
+  console.log(`[invest] cierre automático ${reason} ${sym} @${price} (P&L ${(((price - pos.avgPrice) / pos.avgPrice) * 100).toFixed(2)}%)`);
+  return st;
+}
+
 function enforceLimits(cfg, state, priceMap) {
   const sl = (cfg.stopLossPct || 5) / 100;
   const tp = (cfg.takeProfitPct || 10) / 100;
   const feeRate = (cfg.perTradeFeePct || 0.1) / 100;
+  const trailPct = (cfg.trailingStopPct ?? 5) / 100;
+  const partialPct = Math.min(100, Math.max(0, cfg.takeProfitPartialPct ?? 50)) / 100;
   const trades = [];
   for (const sym of Object.keys(state.positions)) {
     const pos = state.positions[sym];
     const price = priceMap[sym];
     if (price == null || pos.qty <= 0) continue;
+
+    if (pos.highWater == null || price > pos.highWater) pos.highWater = price;
     const pnlPct = (price - pos.avgPrice) / pos.avgPrice;
-    if (pnlPct <= -sl || pnlPct >= tp) {
-      const gross = pos.qty * price;
-      const fee = gross * feeRate;
-      state.cash = round2(state.cash + gross - fee);
-      const soldAvgCost = pos.avgPrice;
-      const st = {
-        id: `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        at: Date.now(),
-        symbol: sym,
-        market: pos.market || '',
-        action: 'sell',
-        qty: round2(pos.qty),
-        price,
-        avgCost: soldAvgCost,
-        fee: round2(fee),
-        mode: state.mode,
-        reason: pnlPct <= -sl ? 'stop-loss' : 'take-profit',
-      };
-      state.trades.push(st);
-      trades.push(st);
-      delete state.positions[sym];
-      console.log(`[invest] cierre automático ${st.reason} ${sym} @${price} (P&L ${(pnlPct * 100).toFixed(2)}%)`);
+
+    // 1) Stop-loss fijo inicial.
+    if (!pos.partialDone && pnlPct <= -sl) {
+      trades.push(closePosition(cfg, state, sym, pos, price, 'stop-loss'));
+      continue;
+    }
+
+    // 2) Take-profit: salida parcial; el resto se protege con trailing.
+    if (!pos.partialDone && pnlPct >= tp) {
+      const sellQty = round2(pos.qty * partialPct);
+      if (sellQty > 0) {
+        const gross = sellQty * price;
+        const fee = gross * feeRate;
+        state.cash = round2(state.cash + gross - fee);
+        pos.qty = round2(pos.qty - sellQty);
+        pos.partialDone = true;
+        const st = {
+          id: `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          at: Date.now(),
+          symbol: sym,
+          market: pos.market || '',
+          action: 'sell',
+          qty: sellQty,
+          price,
+          avgCost: pos.avgPrice,
+          fee: round2(fee),
+          mode: state.mode,
+          reason: 'take-profit',
+        };
+        state.trades.push(st);
+        trades.push(st);
+        console.log(`[invest] salida parcial take-profit ${sym} @${price} (${(pnlPct * 100).toFixed(2)}%)`);
+      }
+      if (pos.qty <= 0.0000001) delete state.positions[sym];
+      continue;
+    }
+
+    // 3) Trailing stop tras la salida parcial: stop = max(breakeven, máximo * (1 - trail)).
+    if (pos.partialDone) {
+      const trailStop = Math.max(pos.avgPrice, pos.highWater * (1 - trailPct));
+      if (price <= trailStop) {
+        trades.push(closePosition(cfg, state, sym, pos, price, 'trailing-stop'));
+        continue;
+      }
     }
   }
   if (trades.length) saveState();

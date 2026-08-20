@@ -19,6 +19,8 @@ export const DEFAULT_CONFIG = {
   maxPositionPct: 10, // % del capital total por posición
   stopLossPct: 5, // stop-loss por posición
   takeProfitPct: 15,
+  takeProfitPartialPct: 50, // % de la posición vendida al tocar take-profit (el resto sigue)
+  trailingStopPct: 5, // trailing: vende si cae este % desde el máximo (tras la salida parcial)
   perTradeFeePct: 0.1, // comisión simulada por operación
   maxEntryRsi: 70, // bloquear compras si RSI14 supera este nivel (sobrecompra)
   minEntryConfidence: 65, // confianza mínima del analista para abrir posición
