@@ -18,8 +18,10 @@ export const DEFAULT_CONFIG = {
   initialCash: 10000,
   maxPositionPct: 10, // % del capital total por posición
   stopLossPct: 5, // stop-loss por posición
-  takeProfitPct: 10,
+  takeProfitPct: 15,
   perTradeFeePct: 0.1, // comisión simulada por operación
+  maxEntryRsi: 70, // bloquear compras si RSI14 supera este nivel (sobrecompra)
+  minEntryConfidence: 65, // confianza mínima del analista para abrir posición
   minCycleIntervalMinutes: 30, // protección contra ciclos demasiado seguidos
   autoCycle: false,
   autoPaused: false,

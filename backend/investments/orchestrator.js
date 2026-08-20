@@ -60,7 +60,7 @@ export async function maybeSendWithdrawalAlert() {
   if (stats.realizedProfit < (cfg.minWithdrawalProfit || 10)) return null;
 
   const cooldownMs = (cfg.withdrawalAlertCooldownH || 24) * 3600 * 1000;
-  if (cfg.withdrawalAlertSentAt && Date.now() - cfg.withdrawalAlertSentAt < cooldownMs) return null;
+  if (state.withdrawalAlertSentAt && Date.now() - state.withdrawalAlertSentAt < cooldownMs) return null;
 
   try {
     const email = buildWithdrawalEmail({ stats });
@@ -348,9 +348,34 @@ async function runCycleForAsset(asset) {
   const auditorReport = await agents.auditor({ assetData, strategistDecision, portfolio: portfolioForAgents });
   emitLive('stage', { symbol: asset.symbol, at: Date.now(), stage: 'auditor', data: auditorReport });
 
-  const finalDecision = auditorReport.approval === false
+  let finalDecision = auditorReport.approval === false
     ? { action: auditorReport.adjustedAction || 'hold', quantity: auditorReport.adjustedQuantity || 0, reasoning: auditorReport.reasoning }
     : { action: strategistDecision.action, quantity: strategistDecision.quantity, reasoning: strategistDecision.reasoning };
+
+  // Validación determinista de prudencia (no depende del LLM):
+  // - Bloquea compras en sobrecompra (RSI14 > maxEntryRsi).
+  // - Exige confianza mínima del analista para abrir posición.
+  if (finalDecision.action === 'buy') {
+    const rsi = Number(indicators.rsi14);
+    const maxRsi = Number(cfg.maxEntryRsi ?? 70);
+    const minConf = Number(cfg.minEntryConfidence ?? 65);
+    const conf = Number(analystReport.confidence ?? 0);
+    if (Number.isFinite(rsi) && rsi > maxRsi) {
+      finalDecision = {
+        action: 'hold',
+        quantity: 0,
+        reasoning: `Compra bloqueada por prudencia: RSI14 ${rsi.toFixed(1)} > ${maxRsi} (sobrecompra). ${finalDecision.reasoning || ''}`,
+      };
+      console.log(`[invest] ${asset.symbol}: compra bloqueada por sobrecompra (RSI ${rsi.toFixed(1)})`);
+    } else if (Number.isFinite(conf) && conf < minConf) {
+      finalDecision = {
+        action: 'hold',
+        quantity: 0,
+        reasoning: `Compra bloqueada por prudencia: confianza del analista ${conf} < ${minConf}. ${finalDecision.reasoning || ''}`,
+      };
+      console.log(`[invest] ${asset.symbol}: compra bloqueada por baja confianza (${conf})`);
+    }
+  }
 
   emitLive('decision', { symbol: asset.symbol, at: Date.now(), decision: finalDecision, price: indicators.price });
 
