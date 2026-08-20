@@ -34,6 +34,8 @@ export function bootstrapAdmin() {
 }
 
 export function isAuthEnabled() {
+  const disable = String(process.env.MIKU_DISABLE_AUTH || '');
+  if (disable === '1' || disable.toLowerCase() === 'true') return false;
   return !!getConfig().authEnabled && !!getConfig().authPasswordHash;
 }
 
