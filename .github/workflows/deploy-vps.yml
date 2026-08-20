@@ -22,7 +22,7 @@ jobs:
       - name: Pull y recrear contenedor en el VPS
         run: |
           ssh -i ~/.ssh/id_ed25519 "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'cd ~/miku-invest && sudo docker compose -f docker-compose.vps.yml pull && sudo docker compose -f docker-compose.vps.yml up -d'
+            'cd ~/miku-invest && (git pull --ff-only || git reset --hard origin/master) && sudo docker compose -f docker-compose.vps.yml pull && sudo docker compose -f docker-compose.vps.yml up -d'
 
       - name: Verificar salud del contenedor
         run: |
